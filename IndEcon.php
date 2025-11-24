@@ -1,5 +1,4 @@
 <?php
-header('Content-Type: text/html; charset=iso-8859-1');
 // Lista de índices do SGS
 $indices = [
     "IPCA (mensal)"              => 433,
@@ -31,7 +30,14 @@ if (isset($_GET['codigo'])) {
         $url .= "&dataFinal=" . urlencode($dataFinal);
 
     // Tenta acessar
-    $json = @file_get_contents($url);
+   $opts = [
+    "ssl" => [
+        "verify_peer" => false,
+        "verify_peer_name" => false,
+    ]
+];
+$context = stream_context_create($opts);
+ $json = file_get_contents($url, false, $context);
 
     if ($json === false) {
         $erro = "Erro ao acessar a API do Banco Central.";
@@ -46,7 +52,7 @@ if (isset($_GET['codigo'])) {
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-<meta charset="iso-8859-1">
+<meta charset="UTF-8">
 <title>Índices Econômicos - API BCB</title>
 <style>
     body {
