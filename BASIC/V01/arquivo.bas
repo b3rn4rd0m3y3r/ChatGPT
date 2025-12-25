@@ -1,0 +1,6 @@
+INPUT NOME
+PRINT "Olá "
+PRINT NOME
+INPUT A(1)
+PRINT A(1)
+PRINT "Fim do programa"
