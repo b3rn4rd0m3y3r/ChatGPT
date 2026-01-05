@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="iso-8859-1">
+<title>Document Question Answering (Vocabulário Dinâmico)</title>
+<script src="tf.min.js"></script>
+<style>
+body { font-family: Arial; margin: 20px }
+textarea { width: 100%; height: 130px }
+input { width: 100%; padding: 6px }
+button { margin-top: 10px; padding: 6px 12px }
+pre { background: #f4f4f4; padding: 10px }
+</style>
+</head>
+
+<body>
+
+<h2>Document Question Answering (Offline)</h2>
+
+<h4>Documento</h4>
+<textarea id="doc">
+Apollo 11 foi um voo espacial tripulado norte-americano responsável pelo primeiro pouso na Lua.
+Os astronautas Neil Armstrong e Buzz Aldrin alunissaram o módulo lunar Eagle em 20 de julho de 1969 às 20h17min UTC.
+Armstrong tornou-se o primeiro humano a pisar na superfície lunar seis horas depois já no dia 21, seguido por Aldrin vinte minutos depois.
+Os dois passaram por volta de duas horas e quinze minutos fora da espaçonave e coletaram 21,5 quilogramas de material para trazer de volta à Terra.
+Michael Collins pilotou sozinho o módulo de comando e serviço Columbia na órbita da Lua enquanto seus companheiros estavam na superfície.
+Armstrong e Aldrin passaram um total de 21 horas e meia na Lua até reencontrarem-se com Collins.
+</textarea>
+
+<h4>Pergunta</h4>
+<input id="pergunta" placeholder="Ex: Quem pilotou o módulo de comando?" />
+
+<button onclick="responder()">Perguntar</button>
+
+<pre id="resposta"></pre>
+
+<script>
+// --------------------------------------------------
+// Normalização
+// --------------------------------------------------
+function normalizar(texto) {
+  return texto
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\w\s]/g, "");
+}
+
+// --------------------------------------------------
+// Divide documento em frases
+// --------------------------------------------------
+function dividirFrases(doc) {
+  return doc
+    .split(/[.!?]/)
+    .map(f => f.trim())
+    .filter(f => f.length > 0);
+}
+
+// --------------------------------------------------
+// Constrói vocabulário dinâmico
+// --------------------------------------------------
+function construirVocab(frases) {
+  const set = new Set();
+  frases.forEach(f => {
+    normalizar(f)
+      .split(/\s+/)
+      .forEach(p => {
+        if (p.length > 2) set.add(p); // ignora palavras muito curtas
+      });
+  });
+  return Array.from(set);
+}
+
+// --------------------------------------------------
+// Texto ? vetor por contagem
+// --------------------------------------------------
+function textoParaVetor(texto, vocab) {
+  const palavras = normalizar(texto).split(/\s+/);
+  return vocab.map(p =>
+    palavras.filter(w => w === p).length
+  );
+}
+
+// --------------------------------------------------
+// Similaridade do cosseno
+// --------------------------------------------------
+function similaridadeCos(v1, v2) {
+  const a = tf.tensor1d(v1);
+  const b = tf.tensor1d(v2);
+
+  const norma = tf.norm(a).mul(tf.norm(b)).dataSync()[0];
+  if (norma === 0) return 0;
+
+  return tf.dot(a, b).div(norma).dataSync()[0];
+}
+
+// --------------------------------------------------
+// Pipeline de QA
+// --------------------------------------------------
+function responder() {
+  const doc = document.getElementById("doc").value;
+  const pergunta = document.getElementById("pergunta").value;
+
+  const frases = dividirFrases(doc);
+  const vocab = construirVocab(frases);
+
+  const vetorPergunta = textoParaVetor(pergunta, vocab);
+
+  let melhorScore = -1;
+  let melhorFrase = "Nenhuma resposta encontrada.";
+
+  frases.forEach(frase => {
+    const vetorFrase = textoParaVetor(frase, vocab);
+    const score = similaridadeCos(vetorPergunta, vetorFrase);
+
+    if (score > melhorScore) {
+      melhorScore = score;
+      melhorFrase = frase;
+    }
+  });
+
+  document.getElementById("resposta").textContent =
+    `Resposta provável:\n${melhorFrase}\n\nSimilaridade: ${melhorScore.toFixed(3)}`;
+}
+</script>
+
+</body>
+</html>
