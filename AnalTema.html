@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="iso-8859-1">
+<title>Análise de Tema de Texto</title>
+<script src="tf.min.js"></script>
+<style>
+body { font-family: Arial; margin: 20px }
+textarea { width: 100%; height: 80px }
+button { margin-top: 10px }
+pre { background: #f0f0f0; padding: 10px }
+</style>
+</head>
+
+<body>
+
+<h2>Análise de Tema e Características (Offline)</h2>
+
+<textarea id="texto" placeholder="Digite um texto..."></textarea>
+<br>
+<button onclick="analisar()">Analisar</button>
+
+<pre id="saida"></pre>
+
+<script>
+// ----------------------------
+// Vocabulário base
+// ----------------------------
+const vocab = [
+  "servidor","sistema","erro","falha","rede","banco","dados",
+  "cliente","pagamento","financeiro",
+  "atraso","reclamação","suporte"
+];
+
+// ----------------------------
+// TF-IDF simplificado
+// ----------------------------
+function textoParaVetor(texto) {
+  texto = texto.toLowerCase();
+  const total = vocab.length;
+  return vocab.map(p => texto.includes(p) ? 1 / total : 0);
+}
+
+// ----------------------------
+// Dados de treino
+// ----------------------------
+const textos = [
+  "falha no servidor de banco de dados",
+  "erro no sistema de rede",
+  "problema financeiro no pagamento",
+  "cliente fez reclamação ao suporte",
+  "atraso no pagamento do cliente"
+];
+
+const temas = [
+  0, 0,   // tecnologia
+  1,      // financeiro
+  2,      // atendimento
+  1       // financeiro
+];
+
+// 0 = tecnologia | 1 = financeiro | 2 = atendimento
+
+// ----------------------------
+// Modelo de TEMA
+// ----------------------------
+const temaModel = tf.sequential();
+temaModel.add(tf.layers.dense({
+  units: 12,
+  inputShape: [vocab.length],
+  activation: 'relu'
+}));
+temaModel.add(tf.layers.dense({
+  units: 3,
+  activation: 'softmax'
+}));
+
+temaModel.compile({
+  optimizer: 'adam',
+  loss: 'categoricalCrossentropy'
+});
+
+const xs = tf.tensor2d(textos.map(textoParaVetor));
+const ys = tf.oneHot(tf.tensor1d(temas, 'int32'), 3);
+
+(async () => {
+  await temaModel.fit(xs, ys, { epochs: 300, verbose: 0 });
+})();
+
+// ----------------------------
+// Características (heurísticas)
+// ----------------------------
+function extrairCaracteristicas(texto) {
+  texto = texto.toLowerCase();
+  return {
+    tecnico: /(servidor|sistema|rede|banco de dados)/.test(texto),
+    financeiro: /(pagamento|financeiro|fatura)/.test(texto),
+    criticidade:
+      /(falha|erro|problema)/.test(texto) ? "alta" : "baixa",
+    tipo_texto:
+      /(reclamação|problema)/.test(texto) ? "relato" : "informativo"
+  };
+}
+
+// ----------------------------
+// Análise final
+// ----------------------------
+function analisar() {
+  const texto = document.getElementById("texto").value;
+  const vetor = textoParaVetor(texto);
+  const pred = temaModel.predict(tf.tensor2d([vetor]));
+  const classe = pred.argMax(-1).dataSync()[0];
+
+  const nomesTemas = ["Tecnologia", "Financeiro", "Atendimento"];
+
+  const resultado = {
+    tema: nomesTemas[classe],
+    caracteristicas: extrairCaracteristicas(texto)
+  };
+
+  document.getElementById("saida").textContent =
+    JSON.stringify(resultado, null, 2);
+}
+</script>
+
+</body>
+</html>

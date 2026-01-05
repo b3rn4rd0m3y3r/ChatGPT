@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="isoi-8859-1">
+  <title>Melhorar Texto com IA</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    textarea {
+      width: 100%;
+      height: 150px;
+      margin-bottom: 10px;
+      padding: 8px;
+      box-sizing: border-box;
+    }
+    button {
+      padding: 8px 16px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+
+  <h3>Texto original</h3>
+  <textarea id="inputText">
+Esse texto ta meio ruim pq foi escrito rapido e sem muita atenção
+ele poderia ficar mais claro e melhor estruturado.
+  </textarea>
+
+  <button id="btn">Melhorar texto</button>
+
+  <h3>Texto melhorado</h3>
+  <textarea id="outputText" readonly></textarea>
+
+  <script type="module">
+    import { pipeline } from "https://cdn.jsdelivr.net/npm/@xenova/transformers";
+
+    const input  = document.getElementById("inputText");
+    const output = document.getElementById("outputText");
+    const button = document.getElementById("btn");
+
+    output.value = "Carregando modelo...";
+
+    const improver = await pipeline(
+      "text2text-generation",
+      "Xenova/t5-base"
+    );
+
+    output.value = "Modelo carregado. Pronto para melhorar o texto.";
+
+    button.onclick = async () => {
+      const text = input.value.trim();
+      if (!text) {
+        output.value = "Digite um texto para melhorar.";
+        return;
+      }
+
+      output.value = "Processando...";
+
+      const result = await improver(
+        "improve: " + text,
+        {
+          max_length: 200
+        }
+      );
+
+      output.value = result[0].generated_text;
+    };
+  </script>
+
+</body>
+</html>
