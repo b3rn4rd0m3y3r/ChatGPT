@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="iso-8859-1">
+<title>Classificador por Tríades</title>
+<style>
+body { font-family: Arial; margin: 20px; }
+table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+th, td { border: 1px solid #ccc; padding: 6px; font-size: 13px; }
+th { background: #eee; }
+button { margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<h2>Classificação de Textos por Tríades</h2>
+
+<p><b>CSV de Textos (Título;Texto)</b></p>
+<input type="file" id="csvTextos">
+
+<p><b>CSV de Tríades (Categoria,Tríade,Peso)</b></p>
+<input type="file" id="csvTriades">
+
+<br>
+<button onclick="processar()">Classificar</button>
+<button onclick="exportar()">Exportar CSV</button>
+
+<table id="resultado">
+<thead>
+<tr>
+<th>Título</th>
+<th>Categoria</th>
+<th>Score</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+
+<script>
+let textos = [];
+let triades = [];
+let resultadoFinal = [];
+
+function normalizar(txt) {
+  return txt
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ");
+}
+
+function radical(p) {
+  return p.length > 4 ? p.substring(0, p.length - 1) : p;
+}
+
+function lerCSV(file, sep, callback) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const linhas = e.target.result.split(/\r?\n/).filter(l => l.trim());
+    callback(linhas);
+  };
+  reader.readAsText(file, "ISO-8859-1");
+}
+
+function processar() {
+  textos = [];
+  triades = [];
+  resultadoFinal = [];
+
+  lerCSV(csvTextos.files[0], ";", linhas => {
+    linhas.slice(1).forEach(l => {
+      const p = l.split(";");
+      textos.push({
+        titulo: p[0] || "",
+        texto: p[1] || ""
+      });
+    });
+
+    lerCSV(csvTriades.files[0], ",", linhas2 => {
+      linhas2.slice(1).forEach(l => {
+        const p = l.split(",");
+        triades.push({
+          categoria: p[0].trim(),
+          palavras: normalizar(p[1]).split(/\s+/).map(radical),
+          peso: parseFloat(p[2].replace(",", "."))
+        });
+      });
+
+      classificar();
+    });
+  });
+}
+
+function classificar() {
+  const tbody = document.querySelector("#resultado tbody");
+  tbody.innerHTML = "";
+
+  textos.forEach(t => {
+    const palavrasTexto = normalizar(t.titulo + " " + t.texto)
+      .split(/\s+/)
+      .map(radical);
+
+    let scores = {};
+
+    triades.forEach(tr => {
+      let achadas = 0;
+      tr.palavras.forEach(p => {
+        if (palavrasTexto.some(w => w.startsWith(p))) achadas++;
+      });
+
+      if (achadas > 0) {
+        const fator = achadas / 3;
+        scores[tr.categoria] = (scores[tr.categoria] || 0) + tr.peso * fator;
+      }
+    });
+
+    let melhorCat = "SEM CLASSIFICACAO";
+    let melhorScore = 0;
+
+    Object.entries(scores).forEach(([c, s]) => {
+      if (s > melhorScore) {
+        melhorScore = s;
+        melhorCat = c;
+      }
+    });
+
+    resultadoFinal.push({
+      titulo: t.titulo,
+      categoria: melhorCat,
+      score: melhorScore.toFixed(2)
+    });
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${t.titulo}</td><td>${melhorCat}</td><td>${melhorScore.toFixed(2)}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function exportar() {
+  let csv = "Titulo;Categoria;Score\n";
+  resultadoFinal.forEach(r => {
+    csv += `"${r.titulo}";"${r.categoria}";"${r.score}"\n`;
+  });
+
+  const blob = new Blob([csv], { type: "text/csv;charset=ISO-8859-1" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "resultado_classificado.csv";
+  a.click();
+}
+</script>
+
+</body>
+</html>
+
+
+
+
+
+
+
