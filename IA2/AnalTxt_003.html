@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>Classificacao por Triades - DEBUG CSV</title>
+
+<style>
+body {
+    font-family: Arial, Helvetica, sans-serif;
+    margin: 20px;
+}
+
+textarea {
+    width: 100%;
+    height: 150px;
+}
+
+button {
+    margin-top: 10px;
+    padding: 8px 15px;
+}
+
+pre {
+    margin-top: 15px;
+    padding: 10px;
+    background-color: #eeeeee;
+    white-space: pre-wrap;
+}
+</style>
+</head>
+
+<body>
+
+<h2>Arquivo CSV de categorias</h2>
+<input type="file" id="csvfile">
+
+<h2>Texto jornalistico</h2>
+
+<textarea id="texto">
+Cole aqui o texto para teste
+</textarea>
+
+<br>
+
+<button onclick="analisar()">Analisar</button>
+
+<pre id="saida"></pre>
+
+<script>
+var triades = [];
+
+function normalizar(txt) {
+    txt = txt.toLowerCase();
+
+    txt = txt.replace(/á|à|ã|â|ä/g, "a");
+    txt = txt.replace(/é|è|ê|ë/g, "e");
+    txt = txt.replace(/í|ì|î|ï/g, "i");
+    txt = txt.replace(/ó|ò|õ|ô|ö/g, "o");
+    txt = txt.replace(/ú|ù|û|ü/g, "u");
+    txt = txt.replace(/ç/g, "c");
+
+    txt = txt.replace(/[^a-z0-9\s]/g, " ");
+    txt = txt.replace(/\s+/g, " ");
+
+    return txt.trim();
+}
+
+function carregarCSV(callback) {
+    var input = document.getElementById("csvfile");
+    if (!input.files.length) {
+        callback("Nenhum CSV selecionado");
+        return;
+    }
+
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        var csv = e.target.result;
+        var linhas = csv.split("\n");
+
+        triades = [];
+
+        for (var i = 1; i < linhas.length; i++) {
+            var l = linhas[i].trim();
+            if (l === "") continue;
+
+            var partes = l.split(",");
+            if (partes.length < 3) continue;
+
+            triades.push({
+                categoria: partes[0].trim(),
+                palavras: partes[1].trim().split(" "),
+                peso: parseFloat(partes[2])
+            });
+        }
+
+        callback(null);
+    };
+
+    reader.readAsText(input.files[0], "ISO-8859-1");
+}
+
+function analisar() {
+    carregarCSV(function(erro) {
+        if (erro) {
+            document.getElementById("saida").textContent = erro;
+            return;
+        }
+
+        var texto = document.getElementById("texto").value;
+        var textoNorm = normalizar(texto);
+        var tokens = textoNorm.split(" ");
+
+        var saida = "";
+        saida += "DEBUG TEXTO NORMALIZADO:\n";
+        saida += textoNorm + "\n\n";
+
+        saida += "TOTAL DE TRIADES LIDAS: " + triades.length + "\n\n";
+
+        var pontuacao = {};
+
+        for (var i = 0; i < triades.length; i++) {
+            var t = triades[i];
+
+            saida += "TRIADE:\n";
+            saida += "Categoria: " + t.categoria + "\n";
+            saida += "Palavras: " + t.palavras.join(" ") + "\n";
+
+            var ok = true;
+
+            for (var j = 0; j < t.palavras.length; j++) {
+                var p = t.palavras[j];
+                var encontrado = (tokens.indexOf(p) !== -1);
+
+                saida += "  Palavra '" + p + "': ";
+                saida += encontrado ? "ENCONTRADA\n" : "NAO ENCONTRADA\n";
+
+                if (!encontrado) ok = false;
+            }
+
+            if (ok) {
+                saida += "=> TRIADE CONFIRMADA\n";
+
+                if (!pontuacao[t.categoria]) {
+                    pontuacao[t.categoria] = 0;
+                }
+                pontuacao[t.categoria] += t.peso;
+            } else {
+                saida += "=> TRIADE NAO CONFIRMADA\n";
+            }
+
+            saida += "\n";
+        }
+
+        saida += "PONTUACAO FINAL:\n";
+        for (var c in pontuacao) {
+            saida += c + ": " + pontuacao[c].toFixed(2) + "\n";
+        }
+
+        document.getElementById("saida").textContent = saida;
+    });
+}
+</script>
+
+</body>
+</html>
+
+
+
+
