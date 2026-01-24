@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="ISO-8859-1">
+<title>AnalTxt 008</title>
+
+<style>
+body {
+  font-family: Verdana, Arial;
+  font-size: 12px;
+  margin: 10px;
+}
+textarea {
+  width: 100%;
+  height: 180px;
+}
+pre {
+  background: #f4f4f4;
+  padding: 8px;
+  white-space: pre-wrap;
+}
+.section {
+  margin-top: 15px;
+}
+</style>
+</head>
+
+<body>
+
+<h2>AnalTxt 008 - Analise por Triades</h2>
+
+<div class="section">
+<b>Arquivo CSV de Triades:</b><br>
+<input type="file" id="csvFile">
+</div>
+
+<div class="section">
+<b>Texto para Analise:</b><br>
+<textarea id="texto"></textarea>
+</div>
+
+<div class="section">
+<button onclick="processar()">Processar</button>
+</div>
+
+<div class="section">
+<b>Categoria Ganhadora:</b>
+<div id="vencedora"></div>
+</div>
+
+<div class="section">
+<b>Triades Sugeridas (Top 10):</b>
+<pre id="sugestoes"></pre>
+</div>
+
+<div class="section">
+<b>DEBUG:</b>
+<pre id="debug"></pre>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+
+/* ---------------- CONFIG ---------------- */
+
+const STOPWORDS = [
+ "de","do","da","dos","das","e","ou","em","no","na","nos","nas",
+ "por","para","com","sem","a","o","as","os"
+];
+
+const TERMOS_GENERICOS = [
+ "social","apoio","atendimento","projeto","acao","comunidade",
+ "populacao","moradores","pessoas","parceria","viabilidade"
+];
+
+const TAM_MIN = 3;
+let TRIADES = [];
+
+/* ---------------- UTIL ---------------- */
+
+function normalizar(txt) {
+  return txt.toLowerCase().replace(/[^a-z0-9\s]/g," ");
+}
+
+function palavraInteira(texto, termo) {
+  const re = new RegExp("\\b" + termo + "\\b","g");
+  return re.test(texto);
+}
+
+function eStopword(p) {
+  return STOPWORDS.indexOf(p) !== -1;
+}
+
+function eGenerico(p) {
+  return TERMOS_GENERICOS.indexOf(p) !== -1;
+}
+
+/* ---------------- CSV ---------------- */
+
+const csvInput = document.getElementById("csvFile");
+
+csvInput.addEventListener("change", function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(evt) {
+    carregarCSV(evt.target.result);
+  };
+  reader.readAsText(file, "ISO-8859-1");
+});
+
+function carregarCSV(conteudo) {
+  TRIADES = [];
+  const linhas = conteudo.split(/\r?\n/);
+
+  for (let i = 1; i < linhas.length; i++) {
+    let l = linhas[i].trim();
+    if (l === "") continue;
+
+    let p = l.split(",");
+    if (p.length < 3) continue;
+
+    TRIADES.push({
+      cat: p[0].trim(),
+      triade: p[1].replace(/"/g,"").split(";"),
+      peso: parseFloat(p[2])
+    });
+  }
+}
+
+/* ---------------- PROCESSAMENTO ---------------- */
+
+window.processar = function () {
+
+  let texto = normalizar(document.getElementById("texto").value);
+  let debug = "";
+  let scoreCat = {};
+
+  TRIADES.forEach(t => {
+
+    let achadas = [];
+
+    t.triade.forEach(termo => {
+      termo = termo.trim();
+      if (termo.length < TAM_MIN) return;
+      if (eStopword(termo)) return;
+
+      if (termo.indexOf(" ") !== -1) {
+        if (texto.indexOf(termo) !== -1) achadas.push(termo);
+      } else {
+        if (palavraInteira(texto, termo)) achadas.push(termo);
+      }
+    });
+
+    let qtd = achadas.length;
+    if (qtd === 0) return;
+
+    let base = 0;
+    if (qtd === 1) base = t.peso / 3;
+    if (qtd === 2) base = (2 * t.peso) / 3;
+    if (qtd >= 3) base = t.peso;
+
+    let fator = 1.0;
+    if (qtd === 1) {
+      fator = eGenerico(achadas[0]) ? 0.20 : 0.50;
+    }
+
+    let score = base * fator;
+
+    if (!scoreCat[t.cat]) scoreCat[t.cat] = 0;
+    scoreCat[t.cat] += score;
+
+    debug += "Categoria: " + t.cat + "\n";
+    debug += "Triade: " + t.triade.join(";") + "\n";
+    debug += "Encontradas: " + achadas.join(", ") + "\n";
+    debug += "Score aplicado: " + score.toFixed(4) + "\n\n";
+  });
+
+  document.getElementById("debug").textContent =
+    debug === "" ? "Nenhuma triade valida encontrada." : debug;
+
+  let vencedora = "";
+  let max = 0;
+
+  for (let c in scoreCat) {
+    if (scoreCat[c] > max) {
+      max = scoreCat[c];
+      vencedora = c;
+    }
+  }
+
+  if (vencedora === "") {
+    document.getElementById("vencedora").textContent = "Indefinida";
+    document.getElementById("sugestoes").textContent = "";
+    return;
+  }
+
+  document.getElementById("vencedora").textContent =
+    vencedora + " (score " + max.toFixed(4) + ")";
+
+  let sug = TRIADES
+    .filter(t => t.cat === vencedora)
+    .sort((a,b) => b.peso - a.peso)
+    .slice(0,10);
+
+  let out = "";
+  sug.forEach(t => {
+    out += t.triade.join(";") + " (peso " + t.peso.toFixed(2) + ")\n";
+  });
+
+  document.getElementById("sugestoes").textContent = out;
+};
+
+});
+</script>
+
+</body>
+</html>
+
+
