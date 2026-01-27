@@ -1,0 +1,221 @@
+CATEGORIA,TRIADE,PESO
+ABASTECIMENTO (MELHORIA),seguranca;hidrica;modernizacao,0.98
+ABASTECIMENTO (MELHORIA),investimento;expansao;rede,0.92
+ABASTECIMENTO (MELHORIA),eficiencia;operacional;abastecimento,0.85
+ABASTECIMENTO (MELHORIA),plano;implantacao;melhoria,0.8
+ACIDENTE,vitimas;ferragens;bombeiros,1.00
+ACIDENTE,colisao;frontal;obito,0.95
+ACIDENTE,interditada;transito;acidente,0.8
+ACIDENTE,atropelamento;rodovia;socorro,0.75
+ACAO SOCIAL;acao social;inclusao;populacao;0.55
+ACAO SOCIAL;assistencia;social;familias;0.60
+ACAO SOCIAL;projeto;social;comunidade;0.50
+ACAO SOCIAL;atendimento;social;cidadaos;0.58
+ACAO SOCIAL;apoio;social;vulnerabilidade;0.62
+CAMPANHAS,campanha;educativa;comunidade,0.95
+CAMPANHAS,campanha;conscientizacao;populacao,0.9
+CAMPANHAS,mobilizacao;campanha;publica,0.85
+CAMPANHAS,divulgacao;campanha;informacao,0.75
+CAMPANHAS,acao;campanha;comunicacao,0.7
+COLETA DE ESGOTO,universalizacao;esgoto;ete,1.00
+COLETA DE ESGOTO,esgotamento;sanitario;bacia,0.95
+COLETA DE ESGOTO,tratamento;residuos;efluentes,0.88
+COLETA DE ESGOTO,rede;coletora;esgoto,0.8
+DESESTATIZACAO (COPASA),privatizacao;leilao;acionistas,1.00
+DESESTATIZACAO (COPASA),projeto;lei;desestatizacao,0.95
+DESESTATIZACAO (COPASA),modelagem;venda;companhia,0.85
+DESESTATIZACAO (COPASA),transferencia;controle;privado,0.8
+DIVIDA COM A UNIAO,rrf;regime;recuperacao,1.00
+DIVIDA COM A UNIAO,indexador;juros;uniao,0.95
+DIVIDA COM A UNIAO,parcelamento;debito;tesouro,0.85
+DIVIDA COM A UNIAO,estoque;divida;estado,0.8
+
+EMERGENCIA ENCHENTES,chuvas intensas;alagamentos;desalojados,0.98
+EMERGENCIA ENCHENTES,enchentes;desabrigados;risco,0.96
+EMERGENCIA ENCHENTES,calamidade publica;chuvas;municipio,0.95
+EMERGENCIA ENCHENTES,alagamentos;interdicao;vias,0.93
+EMERGENCIA ENCHENTES,enchentes;vitimas;populacao,0.92
+EMERGENCIA ENCHENTES,chuvas fortes;infraestrutura danificada;emergencia,0.90
+
+EMERGENCIA PUBLICA,emergencia;publica;risco,0.98
+EMERGENCIA PUBLICA,calamidade;publica;municipio,0.96
+EMERGENCIA PUBLICA,situacao;emergencial;populacao,0.94
+EMERGENCIA PUBLICA,defesa;civil;emergencia,0.92
+EMERGENCIA PUBLICA,desastre;natural;emergencia,0.90
+EMERGENCIA PUBLICA,evacuacao;areas;risco,0.88
+EMERGENCIA PUBLICA,resposta;emergencial;autoridades,0.86
+EMERGENCIA PUBLICA,estado;alerta;emergencia,0.84
+
+EXPOSICAO,"mostra cultural";galeria;arte,0.95
+EXPOSICAO,"mostra de arte";exposicao;publico,0.93
+EXPOSICAO,exposicao;artistica;galeria,0.90
+EXPOSICAO,evento;cultural;exposicao,0.88
+
+FALTA DE AGUA,intermitencia;abastecimento;manutencao,0.98
+FALTA DE AGUA,desabastecimento;bairros;afetados,0.95
+FALTA DE AGUA,caminhao;pipa;falta,0.92
+FALTA DE AGUA,interrupcao;fornecimento;agua,0.90
+FALTA DE AGUA,rodizio;abastecimento;agua,0.88
+FALTA DE AGUA,escassez;agua;abastecimento,0.86
+
+FRAUDE,fraude;investigacao;denuncia,1.00
+FRAUDE,esquema;ilicito;apuracao,0.98
+FRAUDE,crime;financeiro;desvio,0.95
+FRAUDE,irregularidade;auditoria;processo,0.9
+FRAUDE,falsificacao;documento;alerta,0.85
+FRAUDE,golpe;prevencao;seguranca,0.8
+
+INFRAESTRUTURA SANEAMENTO,adutora;obra;ampliacao,0.98
+INFRAESTRUTURA SANEAMENTO,estacao;tratamento;agua,0.96
+INFRAESTRUTURA SANEAMENTO,estacao;tratamento;esgoto,0.95
+INFRAESTRUTURA SANEAMENTO,rede;abastecimento;implantacao,0.93
+INFRAESTRUTURA SANEAMENTO,redundancia;sistema;abastecimento,0.91
+INFRAESTRUTURA SANEAMENTO,elevatoria;esgoto;obra,0.89
+INFRAESTRUTURA SANEAMENTO,modernizacao;sistema;saneamento,0.87
+INFRAESTRUTURA SANEAMENTO,ampliacao;capacidade;tratamento,0.85
+
+INFRAESTRUTURA VIARIA,afundamento;rua;cratera,0.98
+INFRAESTRUTURA VIARIA,buracos;pavimentacao;asfalto,0.9
+INFRAESTRUTURA VIARIA,recapeamento;via;obras,0.8
+INFRAESTRUTURA VIARIA,drenagem;pavimentacao;guia,0.75
+
+INOVACAO,inteligencia;artificial;processo,0.98
+INOVACAO,transformacao;digital;estrategia,0.95
+INOVACAO,automacao;processo;tecnologia,0.9
+INOVACAO,solucao;tecnologica;eficiencia,0.85
+INOVACAO,tecnologia;inovacao;projeto,0.8
+INOVACAO,modernizacao;sistema;operacao,0.75
+INOVACAO,ampliacao;obra;tecnologia,0.6
+INOVACAO,investimento;inovacao;projeto,0.8
+
+INSTITUCIONAL,governanca;institucional;gestao,0.95
+INSTITUCIONAL,compromisso;institucional;sociedade,0.9
+INSTITUCIONAL,imagem;institucional;empresa,0.85
+INSTITUCIONAL,empresa;institucional;atuacao,0.75
+INSTITUCIONAL,atuacao;institucional;publica,0.7
+
+INVESTE ABASTECIMENTO,investimento;abastecimento;agua,0.98
+INVESTE ABASTECIMENTO,aporte;financeiro;abastecimento,0.96
+INVESTE ABASTECIMENTO,financiamento;adutora;agua,0.94
+INVESTE ABASTECIMENTO,recursos;sistema;abastecimento,0.92
+INVESTE ABASTECIMENTO,contrato;obra;abastecimento,0.90
+INVESTE ABASTECIMENTO,programa;investimentos;abastecimento,0.88
+
+INVESTE ESGOTO,investimento;rede;esgoto,0.98
+INVESTE ESGOTO,aporte;financeiro;esgotamento,0.96
+INVESTE ESGOTO,financiamento;estacao;esgoto,0.94
+INVESTE ESGOTO,recursos;tratamento;esgoto,0.92
+INVESTE ESGOTO,contrato;obra;esgoto,0.90
+INVESTE ESGOTO,programa;investimentos;esgotamento,0.88
+
+INVESTE SANEAMENTO,investimento;saneamento;recursos,0.98
+INVESTE SANEAMENTO,aporte;financeiro;saneamento,0.96
+INVESTE SANEAMENTO,financiamento;obra;saneamento,0.94
+INVESTE SANEAMENTO,linha;credito;saneamento,0.92
+INVESTE SANEAMENTO,recursos;PAC;saneamento,0.90
+INVESTE SANEAMENTO,contrato;investimento;saneamento,0.88
+INVESTE SANEAMENTO,fundo;infraestrutura;saneamento,0.86
+INVESTE SANEAMENTO,programa;investimentos;saneamento,0.84
+
+
+INVESTIMENTO,investimento;infraestrutura;projeto,0.95
+INVESTIMENTO,recurso;investimento;programa,0.92
+INVESTIMENTO,investimento;obra;ampliacao,0.90
+INVESTIMENTO,aplicacao;investimento;sistema,0.88
+INVESTIMENTO,melhoria;servico;investimento,0.85
+INVESTIMENTO,aporte;financeiro;projeto,0.83
+INVESTIMENTO,financiamento;programa;investimento,0.80
+
+LEGAL,compliance;etica;integridade,1.00
+LEGAL,decisao;judicial;processo,0.95
+LEGAL,conformidade;legal;obrigacao,0.9
+LEGAL,legislacao;cumprimento;norma,0.85
+LEGAL,adequacao;legal;regulamento,0.8
+LEGAL,responsabilidade;legal;empresa,0.75
+
+MEIO AMBIENTE,impacto;ambiental;atividade,0.98
+MEIO AMBIENTE,licenciamento;ambiental;obra,0.96
+MEIO AMBIENTE,preservacao;recursos;naturais,0.94
+MEIO AMBIENTE,conservacao;ambiental;area,0.92
+MEIO AMBIENTE,degradacao;ambiental;solo,0.90
+MEIO AMBIENTE,poluicao;ambiental;curso;agua,0.88
+MEIO AMBIENTE,monitoramento;ambiental;indicadores,0.86
+MEIO AMBIENTE,sustentabilidade;ambiental;projeto,0.84
+
+MERCADO FINANCEIRO,dividendos;acionistas;lucro,1.00
+MERCADO FINANCEIRO,bolsa;valores;acoes,0.98
+MERCADO FINANCEIRO,resultado;financeiro;trimestre,0.95
+MERCADO FINANCEIRO,mercado;financeiro;acoes,0.9
+MERCADO FINANCEIRO,desempenho;financeiro;empresa,0.85
+MERCADO FINANCEIRO,investimento;mercado;financeiro,0.8
+
+NIVEL RESERVATORIOS,volume;morto;reservatorio,1.00
+NIVEL RESERVATORIOS,bacia;captacao;seca,0.92
+NIVEL RESERVATORIOS,recuperacao;nivel;barragem,0.88
+NIVEL RESERVATORIOS,percentual;volume;reservatorio,0.86
+NIVEL RESERVATORIOS,nivel;critico;reservatorio,0.84
+NIVEL RESERVATORIOS,capacidade;armazenamento;barragem,0.82
+NIVEL RESERVATORIOS,medicao;jusante;reservatorio,0.80
+
+PATROCINIO,incentivo;cultura;patrocinio,0.98
+PATROCINIO,incentivo;cultural;patrocinio,0.98
+PATROCINIO,apoio;cultura;patrocinio,0.9
+PATROCINIO,apoio;cultural;patrocinio,0.9
+PATROCINIO,patrocinio;evento;cultura,0.85
+PATROCINIO,patrocinio;evento;cultural,0.85
+PATROCINIO,apoio;institucional;evento,0.75
+OBRAS ENCHENTES;bacia de contencao;enchentes;drenagem;0.92
+OBRAS ENCHENTES;alagamentos;escoamento;agua;0.88
+OBRAS ENCHENTES;galeria;drenagem;infraestrutura;0.84
+OBRAS ENCHENTES;chuvas;inundacoes;prevencao;0.80
+OBRAS ENCHENTES;obras;intervencoes;vias;0.78
+OBRAS ENCHENTES;bocas de lobo;drenagem;vias;0.86
+OBRAS ENCHENTES;controle;enchentes;infraestrutura;0.82
+OBRAS ENCHENTES;drenagem urbana;agua;vias;0.85
+QUALIDADE,melhoria;continua;processo,0.98
+QUALIDADE,padrao;atendimento;servico,0.90
+QUALIDADE,controle;processo;operacao,0.85
+QUALIDADE,eficiencia;operacional;servico,0.80
+
+QUALIDADE DA AGUA,agua;suja;torneira,0.98
+QUALIDADE DA AGUA,agua;barro;poco,0.96
+QUALIDADE DA AGUA,reclamacao;agua;impropria,0.94
+QUALIDADE DA AGUA,poco;artesiano;contaminacao,0.92
+QUALIDADE DA AGUA,cheiro;forte;agua,0.90
+QUALIDADE DA AGUA,gosto;estranho;agua,0.88
+QUALIDADE DA AGUA,tubulacao;contaminada;manutencao,0.86
+QUALIDADE DA AGUA,abastecimento;agua;contaminada,0.84
+
+RELACIONAMENTO COM CLIENTE,atendimento;cliente;servico,0.98
+RELACIONAMENTO COM CLIENTE,canal;atendimento;usuario,0.96
+RELACIONAMENTO COM CLIENTE,orientacao;usuario;abastecimento,0.94
+RELACIONAMENTO COM CLIENTE,comunicacao;cliente;informacao,0.92
+RELACIONAMENTO COM CLIENTE,reclamacao;cliente;atendimento,0.9
+RELACIONAMENTO COM CLIENTE,ouvidoria;atendimento;usuario,0.88
+RELACIONAMENTO COM CLIENTE,esclarecimento;moradores;servico,0.86
+RELACIONAMENTO COM CLIENTE,informacao;consumidor;abastecimento,0.84
+
+SAUDE,saneamento;saude;publica,0.98
+SAUDE,prevencao;saude;publica,0.95
+SAUDE,qualidade;agua;saude,0.9
+SAUDE,saude;populacao;agua,0.85
+SAUDE,bem;estar;saude,0.8
+
+SERVICOS,manutencao;rede;abastecimento,0.98
+SERVICOS,servico;operacional;sistema,0.95
+SERVICOS,manutencao;preventiva;rede,0.93
+SERVICOS,execucao;servico;tecnico,0.91
+SERVICOS,operacao;abastecimento;rotina,0.89
+SERVICOS,limpeza;rede;esgoto,0.87
+SERVICOS,manutencao;programada;sistema,0.85
+SERVICOS,reparo;rede;distribuicao,0.83
+
+SUSTENTABILIDADE,esg;governanca;responsabilidade,1.00
+SUSTENTABILIDADE,carbono;emissao;reducao,0.98
+SUSTENTABILIDADE,compromisso;sustentabilidade;futuro,0.9
+SUSTENTABILIDADE,sustentabilidade;projeto;ambiental,0.85
+SUSTENTABILIDADE,gestao;sustentavel;recurso,0.8
+SUSTENTABILIDADE,desenvolvimento;sustentavel;acao,0.75
+SUSTENTABILIDADE,reducao;impacto;ambiental,0.7
+
+
