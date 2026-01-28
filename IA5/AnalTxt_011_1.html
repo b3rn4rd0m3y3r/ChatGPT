@@ -109,15 +109,9 @@ const termosObrigatorios = {
         "ordem","contrato","concessao",
         "edital","prestacao","repasse","modelo"
     ]
-    },
-     "INVESTE ABASTECIMENTO": {
-        base: ["abastecimento","agua"],
-        qualificador: [
-            "adutora","estacao","ete","eta",
-            "rede","reservatorio","obra","ampliacao"
-            ],
-        anti: ["taxa","tarifa","conta","concessao","repasse"]
-        },
+},
+
+
     "RELACIONAMENTO COM CLIENTE": {
         base: ["cliente","usuario","consumidor","morador"],
         qualificador: [
@@ -125,6 +119,7 @@ const termosObrigatorios = {
             "queixa","solicitacao","protesto","insatisfacao"
         ]
     },
+
     "TARIFACAO / TAXAS": {
         base: ["taxa","tarifa","cobranca","fatura","conta"],
         qualificador: [
@@ -132,9 +127,11 @@ const termosObrigatorios = {
             "concessao","arrecadacao","repasse"
         ]
     },
+
     "EMERGENCIA ENCHENTES": {
         base: ["enchente","alagamento"]
     },
+
     "EMERGENCIA PUBLICA": {
         base: ["populacao","comunidade","moradores"],
         qualificador: ["risco","grave","urgente","calamidade"],
