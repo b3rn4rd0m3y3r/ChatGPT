@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="ISO-8859-1">
+<title>AnalTxt_011</title>
+<style>
+body { font-family: Arial, sans-serif; margin: 20px; }
+textarea { width: 100%; height: 180px; }
+pre { background: #f4f4f4; padding: 10px; white-space: pre-wrap; }
+button { padding: 10px 20px; margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<h2>AnalTxt 011</h2>
+
+<label>CSV de Triades:</label><br>
+<input type="file" id="csvFile" accept=".csv"><br><br>
+
+<label>Texto para analise:</label><br>
+<textarea id="texto"></textarea><br>
+
+<button id="analisar">Analisar</button>
+
+<h3>Resultado</h3>
+<pre id="resultado"></pre>
+
+<h3>Debug</h3>
+<pre id="debug"></pre>
+
+<script>
+/* ================= NORMALIZACAO ================= */
+
+function normalizarToken(t) {
+    t = t.toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g,"")
+        .replace(/[^a-z0-9]/g,"");
+
+    if (t.endsWith("oes")) t = t.slice(0,-3) + "ao";
+    else if (t.endsWith("ais")) t = t.slice(0,-3) + "al";
+    else if (t.endsWith("res")) t = t.slice(0,-2);
+    else if (t.endsWith("s") && t.length > 3) t = t.slice(0,-1);
+
+    return t;
+}
+
+function normalizarTexto(txt) {
+    return txt
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g,"")
+        .replace(/[^a-z0-9\s\.\!\?]/g," ")
+        .replace(/\s+/g," ")
+        .trim();
+}
+
+/* ================= TERMOS GENERICOS ================= */
+
+const termosGenericos = {
+    "obra": 0.5,
+    "sistema": 0.6,
+    "projeto": 0.6,
+    "acao": 0.5,
+    "medida": 0.5,
+    "atendimento": 0.7,
+    "mostra": 0.3
+};
+
+/* ================= TERMOS OBRIGATORIOS ================= */
+
+const termosObrigatorios = {
+    "FALTA DE AGUA": { base: ["agua"] },
+    "EMERGENCIA ENCHENTES": { base: ["enchente","alagamento"] },
+    "EMERGENCIA PUBLICA": { base: ["populacao","autoridade","defesa","estado"] },
+    "QUALIDADE DA AGUA": {
+        base: ["agua"],
+        qualificador: [
+            "suja","contaminada","impropria","barro",
+            "cheiro","gosto","turbida","escura",
+            "problema","reclamacao"
+        ]
+    }
+};
+
+/* ================= ANTI-TERMOS ================= */
+
+const antiTermos = {
+    "EMERGENCIA PUBLICA": ["manutencao","obra","rede","abastecimento"]
+};
+
+/* ================= PRECEDENCIA ================= */
+
+const precedencia = [
+    "EMERGENCIA ENCHENTES",
+    "EMERGENCIA PUBLICA",
+    "QUALIDADE DA AGUA",
+    "FALTA DE AGUA",
+    "INFRAESTRUTURA (SANEAMENTO)",
+    "INFRAESTRUTURA VIARIA",
+    "SERVICOS",
+    "QUALIDADE"
+];
+
+/* ================= CSV ================= */
+
+let triades = [];
+
+document.getElementById("csvFile").addEventListener("change", function(e) {
+    const reader = new FileReader();
+    reader.onload = function() {
+        triades = [];
+        const linhas = reader.result.split(/\r?\n/);
+        linhas.forEach(l => {
+            if (!l.trim()) return;
+            const p = l.split(",");
+            if (p.length < 3) return;
+
+            triades.push({
+                categoria: p[0].trim(),
+                termos: p[1].split(";").map(t => normalizarToken(t.trim())),
+                peso: parseFloat(p[2].replace(",", "."))
+            });
+        });
+    };
+    reader.readAsText(e.target.files[0], "ISO-8859-1");
+});
+
+/* ================= ANALISE ================= */
+
+document.getElementById("analisar").addEventListener("click", function() {
+
+    const textoNorm = normalizarTexto(document.getElementById("texto").value);
+    const frases = textoNorm.split(/[\.!\?]/);
+    const tokens = textoNorm.split(" ").map(normalizarToken).filter(t => t.length > 1);
+
+    let scores = {};
+    let debug = "";
+
+    triades.forEach(t => {
+
+        /* ---------- Termos obrigatorios ---------- */
+        if (termosObrigatorios[t.categoria]) {
+
+            const regra = termosObrigatorios[t.categoria];
+            let baseOK = false;
+
+            regra.base.forEach(b => {
+                if (tokens.includes(normalizarToken(b))) baseOK = true;
+            });
+
+            if (!baseOK) return;
+
+            if (regra.qualificador) {
+                let qualOK = false;
+                regra.qualificador.forEach(q => {
+                    if (tokens.includes(normalizarToken(q))) qualOK = true;
+                });
+                if (!qualOK) return;
+            }
+        }
+
+        /* ---------- Anti-termos ---------- */
+        if (antiTermos[t.categoria]) {
+            for (let a of antiTermos[t.categoria]) {
+                if (tokens.includes(normalizarToken(a))) return;
+            }
+        }
+
+        /* ---------- Mesma frase ---------- */
+        let encontrados = [];
+        frases.forEach(f => {
+            let ftokens = f.split(" ").map(normalizarToken);
+            let achados = t.termos.filter(term => ftokens.includes(term));
+            if (achados.length > encontrados.length) encontrados = achados;
+        });
+
+        let qtd = encontrados.length;
+        if (qtd === 0) return;
+
+        let total = t.termos.length;
+        let fracao = qtd / total;
+        if (fracao < (1 / total)) return;
+
+        let score = fracao * t.peso;
+
+        /* ---------- Penalizacao genericos ---------- */
+        let fator = 1;
+        encontrados.forEach(term => {
+            if (termosGenericos[term]) fator *= termosGenericos[term];
+        });
+        score *= fator;
+
+        if (!scores[t.categoria]) {
+            scores[t.categoria] = { score: 0, detalhes: [] };
+        }
+
+        scores[t.categoria].score += score;
+        scores[t.categoria].detalhes.push(
+            t.termos.join(";") + " => " + score.toFixed(4)
+        );
+
+        debug += "Categoria: " + t.categoria + "\n";
+        debug += "Triade: " + t.termos.join(";") + "\n";
+        debug += "Encontrados: " + encontrados.join(", ") + "\n";
+        debug += "Score aplicado: " + score.toFixed(4) + "\n\n";
+    });
+
+    let vencedora = null;
+    let maiorScore = 0;
+
+    for (let c in scores) {
+        if (scores[c].score > maiorScore) {
+            maiorScore = scores[c].score;
+            vencedora = c;
+        }
+    }
+
+    let candidatas = Object.keys(scores).filter(c => scores[c].score > 0);
+    for (let p of precedencia) {
+        if (candidatas.includes(p)) {
+            vencedora = p;
+            break;
+        }
+    }
+
+    let resultado = "";
+    if (!vencedora) {
+        resultado = "Nenhuma categoria reconhecida.";
+    } else {
+        resultado = "Categoria vencedora: " + vencedora + "\n";
+        resultado += "Score total: " + scores[vencedora].score.toFixed(4) + "\n\n";
+        resultado += "Triades:\n";
+        scores[vencedora].detalhes.forEach(d => {
+            resultado += "- " + d + "\n";
+        });
+    }
+
+    document.getElementById("resultado").textContent = resultado;
+    document.getElementById("debug").textContent = debug;
+});
+</script>
+
+</body>
+</html>
