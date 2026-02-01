@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Ollama Web Chat</title>
+  <style>
+    body { font-family: Arial; margin: 40px; }
+    textarea { width: 100%; height: 120px; }
+    button { padding: 10px 20px; margin-top: 10px; }
+    pre { background: #f4f4f4; padding: 15px; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+
+<h2>Chat local com Ollama</h2>
+
+<textarea id="prompt" placeholder="Digite sua pergunta..."></textarea>
+<br>
+<button onclick="enviar()">Enviar</button>
+
+<h3>Resposta:</h3>
+<pre id="resposta"></pre>
+
+<script>
+async function enviar() {
+  const prompt = document.getElementById("prompt").value;
+  const out = document.getElementById("resposta");
+  out.textContent = "Processando...";
+  const response = await fetch("http://localhost:11434/api/generate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "llama3",
+      prompt: prompt,
+      stream: false
+    })
+  });
+  const data = await response.json();
+  out.textContent = data.response;
+}
+</script>
+</body>
+</html>
