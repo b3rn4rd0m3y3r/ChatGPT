@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="iso-8859-1">
+  <title>Ollama Web Chat</title>
+  <style>
+    body { font-family: Arial; margin: 40px; }
+    textarea { width: 100%; height: 120px; }
+    button { padding: 10px 20px; margin-top: 10px; }
+    pre { background: #f4f4f4; padding: 15px; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+
+<h2>Chat local com Ollama (histórico mínimo)</h2>
+
+<textarea id="prompt" placeholder="Digite sua pergunta..."></textarea>
+<br>
+<button onclick="enviar()">Enviar</button>
+
+<h3>Resposta:</h3>
+<pre id="resposta"></pre>
+
+<script>
+let historico = "";
+
+async function enviar() {
+  const entrada = document.getElementById("prompt").value.trim();
+  const out = document.getElementById("resposta");
+
+  if (!entrada) return;
+
+  // adiciona pergunta ao histórico
+  historico += "Usuário: " + entrada + "\n";
+
+  out.textContent = "Processando...";
+
+  // marca início do tempo
+  const inicio = performance.now();
+
+  const response = await fetch("http://localhost:11434/api/generate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "llama3",
+      prompt: historico,
+      stream: false
+    })
+  });
+
+  const data = await response.json();
+
+  // marca fim do tempo
+  const fim = performance.now();
+  const tempoMs = (fim - inicio).toFixed(0);
+
+  // adiciona resposta ao histórico
+  historico += "Assistente: " + data.response + "\n";
+
+  out.textContent = data.response + "\n\n? Tempo de resposta: " + tempoMs + " ms";
+  document.getElementById("prompt").value = "";
+}
+</script>
+
+</body>
+</html>
