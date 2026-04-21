@@ -1,0 +1,393 @@
+{
+  "domain": "microprocessadores",
+  "language": "pt-BR",
+  "version": "1.0",
+  "chunks": [
+    
+    {
+      "id": "chunk_01",
+      "concept": "ALU",
+      "type": "definicao",
+      "content": "A ALU é responsável por executar operações aritméticas e lógicas sobre dados binários dentro da CPU."
+    },
+    {
+      "id": "chunk_02",
+      "concept": "ALU",
+      "type": "funcao",
+      "content": "Executa operações matemáticas e lógicas e atualiza flags de status."
+    },
+
+    {
+      "id": "chunk_03",
+      "concept": "Unidade de Controle",
+      "type": "definicao",
+      "content": "Coordena as operações da CPU e interpreta instruções."
+    },
+    {
+      "id": "chunk_04",
+      "concept": "Unidade de Controle",
+      "type": "funcao",
+      "content": "Controla o ciclo de instrução e fluxo de dados."
+    },
+
+    {
+      "id": "chunk_05",
+      "concept": "Registradores",
+      "type": "definicao",
+      "content": "Unidades de armazenamento rápido dentro da CPU."
+    },
+    {
+      "id": "chunk_06",
+      "concept": "Registradores",
+      "type": "funcao",
+      "content": "Armazenam dados temporários e resultados intermediários."
+    },
+
+    {
+      "id": "chunk_07",
+      "concept": "GPR",
+      "type": "definicao",
+      "content": "Registradores de uso geral para dados arbitrários."
+    },
+    {
+      "id": "chunk_08",
+      "concept": "GPR",
+      "type": "funcao",
+      "content": "Facilitam manipulação eficiente de dados."
+    },
+
+    {
+      "id": "chunk_09",
+      "concept": "Program Counter",
+      "type": "definicao",
+      "content": "Armazena o endereço da próxima instrução."
+    },
+    {
+      "id": "chunk_10",
+      "concept": "Program Counter",
+      "type": "funcao",
+      "content": "Controla o fluxo de execução."
+    },
+
+    {
+      "id": "chunk_11",
+      "concept": "Stack Pointer",
+      "type": "definicao",
+      "content": "Aponta para o topo da pilha."
+    },
+    {
+      "id": "chunk_12",
+      "concept": "Stack Pointer",
+      "type": "funcao",
+      "content": "Gerencia operações de pilha."
+    },
+
+    {
+      "id": "chunk_13",
+      "concept": "Stack",
+      "type": "definicao",
+      "content": "Estrutura LIFO para armazenamento temporário."
+    },
+    {
+      "id": "chunk_14",
+      "concept": "Stack",
+      "type": "funcao",
+      "content": "Usada em chamadas de função e recursão."
+    },
+
+    {
+      "id": "chunk_15",
+      "concept": "Flags",
+      "type": "definicao",
+      "content": "Indicadores de estado da CPU."
+    },
+    {
+      "id": "chunk_16",
+      "concept": "Flags",
+      "type": "funcao",
+      "content": "Permitem decisões condicionais."
+    },
+
+    {
+      "id": "chunk_17",
+      "concept": "Barramentos",
+      "type": "definicao",
+      "content": "Canais de comunicação do sistema."
+    },
+    {
+      "id": "chunk_18",
+      "concept": "Barramentos",
+      "type": "funcao",
+      "content": "Transportam dados e sinais."
+    },
+
+    {
+      "id": "chunk_19",
+      "concept": "Cache",
+      "type": "definicao",
+      "content": "Memória rápida próxima à CPU."
+    },
+    {
+      "id": "chunk_20",
+      "concept": "Cache",
+      "type": "funcao",
+      "content": "Reduz latência de acesso."
+    },
+
+    {
+      "id": "chunk_21",
+      "concept": "Pipeline",
+      "type": "definicao",
+      "content": "Execução sobreposta de instruções."
+    },
+    {
+      "id": "chunk_22",
+      "concept": "Pipeline",
+      "type": "funcao",
+      "content": "Aumenta throughput da CPU."
+    },
+
+    {
+      "id": "chunk_23",
+      "concept": "Decodificador",
+      "type": "definicao",
+      "content": "Interpreta instruções binárias."
+    },
+    {
+      "id": "chunk_24",
+      "concept": "Decodificador",
+      "type": "funcao",
+      "content": "Gera sinais de controle."
+    },
+
+    {
+      "id": "chunk_25",
+      "concept": "Clock",
+      "type": "definicao",
+      "content": "Sinal periódico da CPU."
+    },
+    {
+      "id": "chunk_26",
+      "concept": "Clock",
+      "type": "funcao",
+      "content": "Sincroniza operações."
+    },
+
+    {
+      "id": "chunk_27",
+      "concept": "IR",
+      "type": "definicao",
+      "content": "Armazena a instrução atual."
+    },
+    {
+      "id": "chunk_28",
+      "concept": "IR",
+      "type": "funcao",
+      "content": "Permite decodificação."
+    },
+
+    {
+      "id": "chunk_29",
+      "concept": "RAM",
+      "type": "definicao",
+      "content": "Memória principal volátil."
+    },
+    {
+      "id": "chunk_30",
+      "concept": "RAM",
+      "type": "funcao",
+      "content": "Armazena dados e instruções."
+    },
+
+    {
+      "id": "chunk_31",
+      "concept": "FPU",
+      "type": "definicao",
+      "content": "Unidade de ponto flutuante."
+    },
+    {
+      "id": "chunk_32",
+      "concept": "FPU",
+      "type": "funcao",
+      "content": "Executa cálculos complexos."
+    },
+
+    {
+      "id": "chunk_33",
+      "concept": "Registradores de Endereço",
+      "type": "definicao",
+      "content": "Armazenam endereços de memória."
+    },
+    {
+      "id": "chunk_34",
+      "concept": "Registradores de Endereço",
+      "type": "funcao",
+      "content": "Permitem acesso indireto."
+    },
+
+    {
+      "id": "chunk_35",
+      "concept": "DMA",
+      "type": "definicao",
+      "content": "Acesso direto à memória."
+    },
+    {
+      "id": "chunk_36",
+      "concept": "DMA",
+      "type": "funcao",
+      "content": "Reduz carga da CPU."
+    },
+
+    {
+      "id": "chunk_37",
+      "concept": "Interrupções",
+      "type": "definicao",
+      "content": "Eventos que interrompem execução."
+    },
+    {
+      "id": "chunk_38",
+      "concept": "Interrupções",
+      "type": "funcao",
+      "content": "Permitem resposta a eventos."
+    },
+
+    {
+      "id": "chunk_39",
+      "concept": "Multicore",
+      "type": "definicao",
+      "content": "CPU com múltiplos núcleos."
+    },
+    {
+      "id": "chunk_40",
+      "concept": "Multicore",
+      "type": "funcao",
+      "content": "Execução paralela."
+    },
+
+    {
+      "id": "chunk_41",
+      "concept": "Cache Levels",
+      "type": "definicao",
+      "content": "Hierarquia de caches L1, L2 e L3."
+    },
+    {
+      "id": "chunk_42",
+      "concept": "Cache Levels",
+      "type": "funcao",
+      "content": "Equilibram velocidade e capacidade."
+    },
+
+    {
+      "id": "chunk_43",
+      "concept": "ISA",
+      "type": "definicao",
+      "content": "Conjunto de instruções da CPU."
+    },
+    {
+      "id": "chunk_44",
+      "concept": "ISA",
+      "type": "funcao",
+      "content": "Define operações disponíveis."
+    },
+
+    {
+      "id": "chunk_45",
+      "concept": "Microarquitetura",
+      "type": "definicao",
+      "content": "Implementação interna da CPU."
+    },
+    {
+      "id": "chunk_46",
+      "concept": "Microarquitetura",
+      "type": "funcao",
+      "content": "Determina desempenho."
+    },
+
+    {
+      "id": "chunk_47",
+      "concept": "Out-of-Order",
+      "type": "definicao",
+      "content": "Execução fora de ordem."
+    },
+    {
+      "id": "chunk_48",
+      "concept": "Out-of-Order",
+      "type": "funcao",
+      "content": "Maximiza uso da CPU."
+    },
+
+    {
+      "id": "chunk_49",
+      "concept": "Branch Prediction",
+      "type": "definicao",
+      "content": "Previsão de desvios."
+    },
+    {
+      "id": "chunk_50",
+      "concept": "Branch Prediction",
+      "type": "funcao",
+      "content": "Reduz penalidades de pipeline."
+    },
+    {
+      "id": "rel_01",
+      "type": "interacao",
+      "entities": ["ALU", "Registradores"],
+      "content": "A ALU lê operandos dos registradores e grava resultados neles."
+    },
+    {
+      "id": "rel_02",
+      "type": "interacao",
+      "entities": ["ALU", "Flags"],
+      "content": "A ALU atualiza flags após operações."
+    },
+    {
+      "id": "rel_03",
+      "type": "interacao",
+      "entities": ["Unidade de Controle", "ALU"],
+      "content": "A Unidade de Controle define operações da ALU."
+    },
+    {
+      "id": "rel_04",
+      "type": "interacao",
+      "entities": ["Program Counter", "RAM"],
+      "content": "O PC aponta para instruções na memória."
+    },
+    {
+      "id": "rel_05",
+      "type": "interacao",
+      "entities": ["Stack Pointer", "Stack"],
+      "content": "O SP gerencia o topo da pilha."
+    },
+    {
+      "id": "rel_06",
+      "type": "interacao",
+      "entities": ["Cache", "RAM"],
+      "content": "Cache armazena dados da RAM para acesso rápido."
+    },
+    {
+      "id": "rel_07",
+      "type": "interacao",
+      "entities": ["Pipeline", "ALU"],
+      "content": "A ALU executa operações dentro do pipeline."
+    },
+    {
+      "id": "rel_08",
+      "type": "interacao",
+      "entities": ["DMA", "RAM"],
+      "content": "DMA acessa memória sem CPU."
+    },
+    {
+      "id": "rel_09",
+      "type": "interacao",
+      "entities": ["Interrupções", "Program Counter"],
+      "content": "Interrupções salvam e restauram o PC."
+    },
+    {
+      "id": "rel_10",
+      "type": "interacao",
+      "entities": ["Branch Prediction", "Pipeline"],
+      "content": "Predição mantém pipeline eficiente."
+    }
+
+  ]
+}

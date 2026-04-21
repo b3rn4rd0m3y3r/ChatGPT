@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>RAG Microprocessadores</title>
+
+<style>
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+header {
+  padding: 15px;
+  background: #020617;
+  text-align: center;
+  font-size: 20px;
+  font-weight: bold;
+}
+
+#chat {
+  padding: 20px;
+  height: 65vh;
+  overflow-y: auto;
+}
+
+.msg {
+  margin-bottom: 35px;
+  padding: 12px;
+  border-radius: 10px;
+  max-width: 80%;
+}
+
+.user {
+  background: #1e293b;
+  margin-left: auto;
+}
+
+.bot {
+  background: #334155;
+}
+
+#inputArea {
+  display: flex;
+  padding: 15px;
+  background: #020617;
+}
+
+input {
+  flex: 1;
+  padding: 12px;
+  font-size: 16px;
+  border-radius: 8px;
+  border: none;
+}
+
+button {
+  margin-left: 10px;
+  padding: 12px 18px;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #2563eb;
+}
+</style>
+
+</head>
+<body>
+
+<header>🧠 RAG Microprocessadores</header>
+
+<div id="chat"></div>
+
+<div id="inputArea">
+  <input id="pergunta" placeholder="Digite sua pergunta..." />
+  <button onclick="enviar()">Enviar</button>
+</div>
+
+<script>
+const OLLAMA_URL = "http://localhost:11434";
+let db = [];
+
+// =======================
+// Carregar DB
+// =======================
+fetch("db.json")
+  .then(r => r.json())
+  .then(data => {
+    db = data;
+    console.log("DB carregado:", db.length);
+  });
+
+// =======================
+// UI
+// =======================
+function addMsg(text, cls) {
+  const div = document.createElement("div");
+  div.className = "msg " + cls;
+  div.innerText = text;
+  document.getElementById("chat").appendChild(div);
+  div.scrollIntoView();
+}
+
+// =======================
+// Similaridade
+// =======================
+function cosine(a, b) {
+  let dot = 0, na = 0, nb = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i]*b[i];
+    na += a[i]*a[i];
+    nb += b[i]*b[i];
+  }
+  return dot / (Math.sqrt(na)*Math.sqrt(nb));
+}
+
+// =======================
+// EMBEDDING
+// =======================
+async function embed(text) {
+  const res = await fetch(`${OLLAMA_URL}/api/embeddings`, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({
+      model: "nomic-embed-text",
+      prompt: text
+    })
+  });
+
+  const data = await res.json();
+  return data.embedding;
+}
+
+// =======================
+// GERAÇÃO
+// =======================
+async function generate(prompt) {
+  const res = await fetch(`${OLLAMA_URL}/api/chat`, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({
+      model: "mistral",
+      messages: [
+        { role: "user", content: prompt }
+      ],
+      stream: false
+    })
+  });
+
+  const data = await res.json();
+  return data.message.content;
+}
+
+// =======================
+// ENVIO
+// =======================
+async function enviar() {
+  const input = document.getElementById("pergunta");
+  const pergunta = input.value;
+  if (!pergunta) return;
+
+  addMsg(pergunta, "user");
+  input.value = "";
+
+  addMsg("Pensando...", "bot");
+
+  const qEmb = await embed(pergunta);
+
+  const scored = db.map(c => ({
+    ...c,
+    score: cosine(qEmb, c.embedding)
+  }));
+
+  scored.sort((a,b)=>b.score-a.score);
+
+  const top = scored.slice(0,5);
+
+  const contexto = top.map(c => c.content).join("\n");
+
+  const prompt = `
+Responda usando apenas o contexto abaixo:
+
+${contexto}
+
+Pergunta: ${pergunta}
+Resposta:
+`;
+
+  const resposta = await generate(prompt);
+
+  // remove "Pensando..."
+  document.getElementById("chat").lastChild.remove();
+
+  addMsg(resposta, "bot");
+}
+
+// enter = enviar
+document.getElementById("pergunta")
+  .addEventListener("keypress", e => {
+    if (e.key === "Enter") enviar();
+  });
+
+</script>
+
+</body>
+</html>
