@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ollama — primeira chamada com fetch()</title>
+<style>
+:root{
+    --azul:#3b82f6;
+    --azul2:#2563eb;
+    --roxo:#7c3aed;
+    --fundo:#eef4ff;
+    --card:#ffffff;
+    --texto:#1e293b;
+    --borda:#dbe4f0;
+    --cinza:#64748b;
+}
+
+*{
+    box-sizing:border-box;
+}
+
+body{
+    margin:0;
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    padding:30px;
+    background:linear-gradient(135deg,#dbeafe,#eef2ff,#ede9fe);
+    font-family:"Trebuchet MS",Arial,sans-serif;
+}
+
+main{
+    width:100%;
+    max-width:720px;
+    background:var(--card);
+    border-radius:18px;
+    overflow:hidden;
+    box-shadow:0 20px 45px rgba(0,0,0,.15);
+}
+
+header{
+    background:linear-gradient(135deg,var(--azul),var(--roxo));
+    color:white;
+    padding:30px;
+    text-align:center;
+}
+
+header h1{
+    margin:0;
+    font-size:34px;
+    letter-spacing:1px;
+}
+
+header p{
+    margin-top:8px;
+    opacity:.9;
+}
+
+section{
+    padding:30px;
+}
+
+label{
+    display:block;
+    margin-bottom:8px;
+    font-weight:bold;
+    color:var(--texto);
+}
+
+select,
+textarea{
+    width:100%;
+    padding:14px;
+    font-family:"Trebuchet MS",Arial,sans-serif;
+    font-size:16px;
+    border:1px solid var(--borda);
+    border-radius:10px;
+    outline:none;
+    transition:.25s;
+    margin-bottom:20px;
+}
+
+select:focus,
+textarea:focus{
+    border-color:var(--azul);
+    box-shadow:0 0 0 4px rgba(59,130,246,.15);
+}
+
+textarea{
+    resize:vertical;
+    min-height:130px;
+}
+
+button{
+    width:100%;
+    padding:15px;
+    border:none;
+    border-radius:10px;
+    background:linear-gradient(135deg,var(--azul),var(--roxo));
+    color:white;
+    font-family:"Trebuchet MS",Arial,sans-serif;
+    font-size:18px;
+    font-weight:bold;
+    cursor:pointer;
+    transition:.3s;
+}
+
+button:hover{
+    transform:translateY(-2px);
+    box-shadow:0 10px 20px rgba(37,99,235,.35);
+}
+
+button:disabled{
+    opacity:.6;
+    cursor:default;
+    transform:none;
+}
+
+#resposta{
+    margin-top:25px;
+    background:#f8fafc;
+    border-left:6px solid var(--azul);
+    border-radius:10px;
+    padding:18px;
+    min-height:80px;
+    white-space:pre-wrap;
+    line-height:1.6;
+    color:var(--texto);
+}
+
+#resposta:empty{
+    display:none;
+}
+
+#resposta.erro{
+    background:#fef2f2;
+    border-left-color:#dc2626;
+    color:#b91c1c;
+}
+</style>
+</head>
+<body>
+
+<main>
+
+    <header>
+        <h1>🤖 Chat Ollama</h1>
+        <p>Converse com modelos de IA executando localmente</p>
+    </header>
+
+    <section>
+
+        <label for="modelo">Modelo</label>
+
+        <select id="modelo">
+            <option>llama3</option>
+            <option>mistral</option>
+            <option>phi3</option>
+            <option>qwen3:8b</option>
+            <option>laguna-xs-2.1</option>
+        </select>
+
+        <label for="prompt">Sua pergunta</label>
+
+        <textarea id="prompt">Explique o que é CORS em uma frase.</textarea>
+
+        <button id="enviar">
+            🚀 Perguntar ao Ollama
+        </button>
+
+        <div id="resposta"></div>
+
+    </section>
+
+</main>
+
+<script>
+  const modeloEl = document.querySelector('#modelo');
+  const promptEl = document.querySelector('#prompt');
+  const botao = document.querySelector('#enviar');
+  const resposta = document.querySelector('#resposta');
+
+  botao.addEventListener('click', async () => {
+    const texto = promptEl.value.trim();
+    if (!texto) return;
+
+    botao.disabled = true;
+    botao.textContent = 'Perguntando...';
+    resposta.classList.remove('erro');
+    resposta.textContent = '';
+
+    try {
+      const r = await fetch('http://localhost:11434/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: modeloEl.value,
+          prompt: texto,
+          stream: false
+        })
+      });
+
+      if (!r.ok) {
+        throw new Error('O Ollama respondeu com erro: ' + r.status);
+      }
+
+      const dados = await r.json();
+      resposta.textContent = dados.response;
+
+    } catch (erro) {
+      resposta.classList.add('erro');
+      resposta.textContent =
+        'Não consegui falar com o Ollama. Confira se ele está rodando ' +
+        'em localhost:11434 e se o OLLAMA_ORIGINS está liberado (Aula 5).';
+      console.error(erro);
+    } finally {
+      botao.disabled = false;
+      botao.textContent = 'Perguntar';
+    }
+  });
+</script>
+
+</body>
+</html>
