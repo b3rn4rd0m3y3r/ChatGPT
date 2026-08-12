@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ollama — caixa de prompt com streaming</title>
+<style>
+:root{
+    --azul:#3b82f6;
+    --azul2:#2563eb;
+    --roxo:#7c3aed;
+    --card:#ffffff;
+    --texto:#1e293b;
+    --borda:#dbe4f0;
+    --cinza:#64748b;
+    --verde:#0d9488;
+}
+
+*{ box-sizing:border-box; }
+
+body{
+    margin:0;
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    padding:30px;
+    background:linear-gradient(135deg,#dbeafe,#eef2ff,#ede9fe);
+    font-family:"Trebuchet MS",Arial,sans-serif;
+}
+
+main{
+    width:100%;
+    max-width:760px;
+    background:var(--card);
+    border-radius:18px;
+    overflow:hidden;
+    box-shadow:0 20px 45px rgba(0,0,0,.15);
+}
+
+header{
+    background:linear-gradient(135deg,var(--azul),var(--roxo));
+    color:white;
+    padding:30px;
+    text-align:center;
+}
+
+header h1{
+    margin:0;
+    font-size:32px;
+    letter-spacing:.5px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+}
+
+header p{
+    margin-top:8px;
+    opacity:.9;
+}
+
+section{ padding:30px; }
+
+label{
+    display:block;
+    margin-bottom:8px;
+    font-weight:bold;
+    color:var(--texto);
+}
+
+select,
+textarea{
+    width:100%;
+    padding:14px;
+    font-family:"Trebuchet MS",Arial,sans-serif;
+    font-size:16px;
+    border:1px solid var(--borda);
+    border-radius:10px;
+    outline:none;
+    transition:.25s;
+    margin-bottom:20px;
+}
+
+select:focus,
+textarea:focus{
+    border-color:var(--azul);
+    box-shadow:0 0 0 4px rgba(59,130,246,.15);
+}
+
+textarea{ resize:vertical; min-height:110px; }
+
+button{
+    width:100%;
+    padding:15px;
+    border:none;
+    border-radius:10px;
+    background:linear-gradient(135deg,var(--azul),var(--roxo));
+    color:white;
+    font-family:"Trebuchet MS",Arial,sans-serif;
+    font-size:18px;
+    font-weight:bold;
+    cursor:pointer;
+    transition:.3s;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+}
+
+button:hover{
+    transform:translateY(-2px);
+    box-shadow:0 10px 20px rgba(37,99,235,.35);
+}
+
+button:disabled{ opacity:.6; cursor:default; transform:none; }
+
+button .spinner{
+    width:16px; height:16px;
+    border-radius:50%;
+    border:2.5px solid rgba(255,255,255,.4);
+    border-top-color:#fff;
+    display:none;
+    animation:girar .7s linear infinite;
+}
+
+button.carregando .spinner{ display:inline-block; }
+
+@keyframes girar{ to{ transform:rotate(360deg); } }
+
+/* ---- barra de estatisticas ---- */
+.stats{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:12px;
+    margin-top:22px;
+}
+
+.stat{
+    background:#f8fafc;
+    border:1px solid var(--borda);
+    border-radius:12px;
+    padding:14px 10px;
+    text-align:center;
+    transition:.25s;
+}
+
+.stat.ativo{
+    border-color:var(--azul);
+    background:#eff6ff;
+}
+
+.stat svg{ display:block; margin:0 auto 6px; }
+
+.stat .valor{
+    font-size:22px;
+    font-weight:bold;
+    color:var(--texto);
+    font-variant-numeric:tabular-nums;
+}
+
+.stat .rotulo{
+    font-size:12px;
+    color:var(--cinza);
+    text-transform:uppercase;
+    letter-spacing:.5px;
+    margin-top:2px;
+}
+
+/* ---- area de resposta ---- */
+#resposta{
+    margin-top:22px;
+    background:#f8fafc;
+    border-left:6px solid var(--azul);
+    border-radius:10px;
+    padding:18px;
+    min-height:90px;
+    white-space:pre-wrap;
+    line-height:1.6;
+    color:var(--texto);
+}
+
+#resposta:empty{ display:none; }
+
+#resposta.erro{
+    background:#fef2f2;
+    border-left-color:#dc2626;
+    color:#b91c1c;
+}
+
+/* cursor piscando ao final do texto enquanto o streaming esta ativo */
+#resposta.streaming::after{
+    content:"";
+    display:inline-block;
+    width:8px; height:18px;
+    margin-left:2px;
+    background:var(--azul2);
+    vertical-align:middle;
+    animation:piscar 1s step-start infinite;
+}
+
+@keyframes piscar{ 50%{ opacity:0; } }
+</style>
+</head>
+<body>
+
+<main>
+
+    <header>
+        <h1>
+          <svg width="32" height="32" viewBox="0 0 80 80" fill="none" stroke="white"
+               stroke-width="4.6" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="40" cy="40" r="30"/>
+            <path d="M 26 46 Q 26 18 40 18 Q 54 18 54 46"/>
+            <circle cx="31" cy="34" r="3.2" fill="white" stroke="none"/>
+            <circle cx="49" cy="34" r="3.2" fill="white" stroke="none"/>
+            <line x1="30" y1="46" x2="50" y2="46"/>
+          </svg>
+          Caixa de prompt com streaming
+        </h1>
+        <p>Aula 9 · resposta chegando aos poucos, com métricas ao vivo</p>
+    </header>
+
+    <section>
+
+        <label for="modelo">Modelo</label>
+        <select id="modelo">
+            <option value="llama3">llama3</option>
+            <option value="mistral">mistral</option>
+            <option value="phi3">phi3</option>
+            <option value="qwen3:8b">qwen3:8b</option>
+        </select>
+
+        <label for="prompt">Sua pergunta</label>
+        <textarea id="prompt">Explique o que é streaming em três frases.</textarea>
+
+        <button id="enviar">
+            <span class="spinner"></span>
+            <span class="rotulo-botao">Perguntar ao Ollama</span>
+        </button>
+
+        <div class="stats">
+            <div class="stat" id="cardTempo">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="9"/>
+                    <path d="M12 7v5l3.5 2"/>
+                </svg>
+                <div class="valor" id="statTempo">0.0s</div>
+                <div class="rotulo">Tempo</div>
+            </div>
+            <div class="stat" id="cardPalavras">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 6h16M4 12h16M4 18h10"/>
+                </svg>
+                <div class="valor" id="statPalavras">0</div>
+                <div class="rotulo">Palavras</div>
+            </div>
+            <div class="stat" id="cardFragmentos">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0d9488" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="4" y="4" width="7" height="7" rx="1.5"/>
+                    <rect x="13" y="4" width="7" height="7" rx="1.5"/>
+                    <rect x="4" y="13" width="7" height="7" rx="1.5"/>
+                    <rect x="13" y="13" width="7" height="7" rx="1.5"/>
+                </svg>
+                <div class="valor" id="statFragmentos">0</div>
+                <div class="rotulo">Fragmentos</div>
+            </div>
+        </div>
+
+        <div id="resposta"></div>
+
+    </section>
+
+</main>
+
+<script>
+  const modeloEl = document.querySelector('#modelo');
+  const promptEl = document.querySelector('#prompt');
+  const botao = document.querySelector('#enviar');
+  const rotuloBotao = botao.querySelector('.rotulo-botao');
+  const resposta = document.querySelector('#resposta');
+
+  const statTempo = document.querySelector('#statTempo');
+  const statPalavras = document.querySelector('#statPalavras');
+  const statFragmentos = document.querySelector('#statFragmentos');
+  const cardTempo = document.querySelector('#cardTempo');
+  const cardPalavras = document.querySelector('#cardPalavras');
+  const cardFragmentos = document.querySelector('#cardFragmentos');
+
+  const textoOriginalBotao = rotuloBotao.textContent;
+
+  function contarPalavras(texto) {
+    const limpo = texto.trim();
+    return limpo ? limpo.split(/\s+/).length : 0;
+  }
+
+  function formatarTempo(ms) {
+    return (ms / 1000).toFixed(1) + 's';
+  }
+
+  botao.addEventListener('click', async () => {
+    const texto = promptEl.value.trim();
+    if (!texto) return;
+
+    // --- reset visual ---
+    botao.disabled = true;
+    botao.classList.add('carregando');
+    rotuloBotao.textContent = 'Perguntando...';
+    resposta.classList.remove('erro');
+    resposta.classList.add('streaming');
+    resposta.textContent = '';
+    statTempo.textContent = '0.0s';
+    statPalavras.textContent = '0';
+    statFragmentos.textContent = '0';
+    [cardTempo, cardPalavras, cardFragmentos].forEach(c => c.classList.add('ativo'));
+
+    let totalFragmentos = 0;
+    const inicio = performance.now();
+
+    // 1) cronometro ao vivo: atualiza a cada 100ms, independente da chegada de fragmentos
+    const cronometro = setInterval(() => {
+      statTempo.textContent = formatarTempo(performance.now() - inicio);
+    }, 100);
+
+    try {
+      const r = await fetch('http://localhost:11434/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: modeloEl.value,
+          keep_alive: '5m',
+          prompt: texto,
+          stream: true,
+          options: {
+            num_ctx: 4096,
+            num_predict: -1,
+            num_thread: navigator.hardwareConcurrency || 4,
+            temperature: 0.4
+          }
+        })
+      });
+
+      if (!r.ok) {
+        throw new Error('O Ollama respondeu com erro: ' + r.status);
+      }
+
+      // 4) exibicao dos fragmentos exatamente a medida em que chegam
+      const leitor = r.body.getReader();
+      const decoder = new TextDecoder();
+      let sobra = '';
+
+      while (true) {
+        const { value, done } = await leitor.read();
+        if (done) break;
+
+        // {stream:true} evita quebrar acentos na fronteira entre dois pedacos de bytes
+        sobra += decoder.decode(value, { stream: true });
+
+        const linhas = sobra.split('\n');
+        sobra = linhas.pop(); // ultima linha pode estar incompleta; guarda pro proximo pedaco
+
+        for (const linha of linhas) {
+          if (!linha.trim()) continue;
+          const pedaco = JSON.parse(linha);
+
+          // 3) contagem dos fragmentos (cada objeto de response recebido)
+          totalFragmentos++;
+          statFragmentos.textContent = totalFragmentos;
+
+          if (pedaco.response) {
+            resposta.textContent += pedaco.response;
+            // 2) contagem de palavras, atualizada ao vivo a cada fragmento
+            statPalavras.textContent = contarPalavras(resposta.textContent);
+          }
+        }
+      }
+
+    } catch (erro) {
+      resposta.classList.add('erro');
+      resposta.textContent =
+        'Não consegui falar com o Ollama. Confira se ele está rodando ' +
+        'em localhost:11434 e se o OLLAMA_ORIGINS está liberado (Aula 5).';
+      console.error(erro);
+    } finally {
+      // 1) tempo final, com casas decimais extras, congelado no instante exato da conclusao
+      clearInterval(cronometro);
+      statTempo.textContent = ((performance.now() - inicio) / 1000).toFixed(2) + 's';
+
+      resposta.classList.remove('streaming');
+      botao.disabled = false;
+      botao.classList.remove('carregando');
+      rotuloBotao.textContent = textoOriginalBotao;
+    }
+  });
+</script>
+
+</body>
+</html>
