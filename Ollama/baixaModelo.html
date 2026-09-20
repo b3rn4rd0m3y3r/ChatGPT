@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ollama — baixar modelo</title>
+<style>
+:root{
+    --azul:#3b82f6;
+    --azul2:#2563eb;
+    --roxo:#7c3aed;
+    --card:#ffffff;
+    --texto:#1e293b;
+    --borda:#dbe4f0;
+    --cinza:#64748b;
+    --verde:#0d9488;
+    --verde2:#16a34a;
+    --vermelho:#dc2626;
+}
+
+*{ box-sizing:border-box; }
+
+body{
+    margin:0;
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    padding:30px;
+    background:linear-gradient(135deg,#dbeafe,#eef2ff,#ede9fe);
+    font-family:"Trebuchet MS",Arial,sans-serif;
+}
+
+main{
+    width:100%;
+    max-width:560px;
+    background:var(--card);
+    border-radius:18px;
+    overflow:hidden;
+    box-shadow:0 20px 45px rgba(0,0,0,.15);
+}
+
+header{
+    background:linear-gradient(135deg,var(--azul),var(--roxo));
+    color:white;
+    padding:30px;
+    text-align:center;
+}
+
+header h1{
+    margin:0;
+    font-size:26px;
+    letter-spacing:.5px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+}
+
+header p{
+    margin-top:8px;
+    opacity:.9;
+    font-size:14px;
+}
+
+section{ padding:28px 30px 30px; }
+
+label{
+    display:block;
+    margin-bottom:8px;
+    font-weight:bold;
+    color:var(--texto);
+    font-size:14px;
+}
+
+.linha-input{
+    display:flex;
+    gap:10px;
+    margin-bottom:8px;
+}
+
+input[type="text"]{
+    flex:1;
+    padding:13px 14px;
+    font-family:"Trebuchet MS",Arial,sans-serif;
+    font-size:15px;
+    border:1px solid var(--borda);
+    border-radius:10px;
+    outline:none;
+    transition:.25s;
+}
+
+input[type="text"]:focus{
+    border-color:var(--azul);
+    box-shadow:0 0 0 4px rgba(59,130,246,.15);
+}
+
+input[type="text"]:disabled{
+    background:#f8fafc;
+    color:var(--cinza);
+}
+
+.dica{
+    font-size:12px;
+    color:var(--cinza);
+    margin:0 0 20px;
+}
+
+.botoes{
+    display:flex;
+    gap:10px;
+    margin-bottom:22px;
+}
+
+button{
+    border:none;
+    border-radius:10px;
+    font-family:"Trebuchet MS",Arial,sans-serif;
+    font-size:16px;
+    font-weight:bold;
+    cursor:pointer;
+    transition:.25s;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:9px;
+}
+
+#baixar{
+    flex:1;
+    padding:14px;
+    background:linear-gradient(135deg,var(--azul),var(--roxo));
+    color:white;
+}
+
+#baixar:hover:not(:disabled){
+    transform:translateY(-2px);
+    box-shadow:0 10px 20px rgba(37,99,235,.35);
+}
+
+#baixar:disabled{ opacity:.65; cursor:default; transform:none; }
+
+#cancelar{
+    padding:14px 18px;
+    background:#fef2f2;
+    color:var(--vermelho);
+    border:1px solid #fecaca;
+}
+
+#cancelar:hover{ background:#fee2e2; }
+
+.spinner{
+    width:16px; height:16px;
+    border-radius:50%;
+    border:2.5px solid rgba(255,255,255,.4);
+    border-top-color:#fff;
+    display:none;
+    animation:girar .7s linear infinite;
+}
+
+#baixar.carregando .spinner{ display:inline-block; }
+
+@keyframes girar{ to{ transform:rotate(360deg); } }
+
+/* ---- status + barra de progresso ---- */
+#status{
+    font-size:13.5px;
+    color:var(--cinza);
+    margin-bottom:10px;
+    min-height:18px;
+}
+
+.barra-fundo{
+    background:#e2e8f0;
+    border-radius:8px;
+    height:12px;
+    overflow:hidden;
+    margin-bottom:8px;
+}
+
+.barra-progresso{
+    height:100%;
+    width:0%;
+    background:linear-gradient(135deg,var(--azul),var(--roxo));
+    border-radius:8px;
+    transition:width .25s ease;
+}
+
+.linha-percentual{
+    display:flex;
+    justify-content:space-between;
+    font-size:12px;
+    color:var(--cinza);
+    margin-bottom:20px;
+}
+
+#percentual{ font-weight:bold; color:var(--texto); }
+
+/* ---- estatisticas: label a esquerda, valor a direita ---- */
+.stats{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    margin-bottom:6px;
+}
+
+.stat{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    background:#f8fafc;
+    border:1px solid var(--borda);
+    border-radius:10px;
+    padding:10px 14px;
+}
+
+.stat .rotulo{
+    font-size:12px;
+    color:var(--cinza);
+    text-transform:uppercase;
+    letter-spacing:.5px;
+}
+
+.stat .valor{
+    font-size:14.5px;
+    font-weight:bold;
+    color:var(--texto);
+    font-variant-numeric:tabular-nums;
+}
+
+/* ---- mensagens de status final ---- */
+.mensagem{
+    margin-top:16px;
+    padding:14px 16px;
+    border-radius:10px;
+    font-size:14px;
+    line-height:1.5;
+}
+
+.mensagem[hidden]{ display:none; }
+
+.mensagem.sucesso{
+    background:#f0fdf4;
+    border:1px solid #bbf7d0;
+    color:#15803d;
+}
+
+.mensagem.erro{
+    background:#fef2f2;
+    border:1px solid #fecaca;
+    color:#b91c1c;
+}
+
+.mensagem.info{
+    background:#f1f5f9;
+    border:1px solid var(--borda);
+    color:var(--cinza);
+}
+</style>
+</head>
+<body>
+
+<main>
+
+    <header>
+        <h1>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          Baixar modelo
+        </h1>
+        <p>Aula 17 · POST /api/pull, com progresso, velocidade e cancelamento</p>
+    </header>
+
+    <section>
+
+        <label for="nomeModelo">Nome do modelo</label>
+        <div class="linha-input">
+            <input type="text" id="nomeModelo" placeholder="ex: mistral" list="modelosComuns" autocomplete="off">
+        </div>
+        <p class="dica">Sugestões: mistral, llama3, llama3.1, phi3, qwen3:8b, gemma2, codellama, deepseek-r1</p>
+
+        <datalist id="modelosComuns">
+            <option value="mistral">
+            <option value="llama3">
+            <option value="llama3.1">
+            <option value="phi3">
+            <option value="phi3.5">
+            <option value="qwen3:8b">
+            <option value="qwen2.5">
+            <option value="gemma2">
+            <option value="codellama">
+            <option value="deepseek-r1">
+            <option value="llava">
+        </datalist>
+
+        <div class="botoes">
+            <button id="baixar" type="button">
+                <span class="spinner"></span>
+                <span class="rotulo-botao">Baixar modelo</span>
+            </button>
+            <button id="cancelar" type="button" hidden>Cancelar</button>
+        </div>
+
+        <div id="status">Digite o nome de um modelo e clique em "Baixar modelo".</div>
+
+        <div class="barra-fundo">
+            <div class="barra-progresso" id="barra"></div>
+        </div>
+        <div class="linha-percentual">
+            <span id="percentual">0%</span>
+            <span id="camadaAtual"></span>
+        </div>
+
+        <div class="stats">
+            <div class="stat">
+                <span class="rotulo">Baixado</span>
+                <span class="valor" id="statBaixado">0 MB / 0 MB</span>
+            </div>
+            <div class="stat">
+                <span class="rotulo">Velocidade</span>
+                <span class="valor" id="statVelocidade">—</span>
+            </div>
+            <div class="stat">
+                <span class="rotulo">Tempo restante</span>
+                <span class="valor" id="statRestante">—</span>
+            </div>
+        </div>
+
+        <div id="mensagem" class="mensagem" hidden></div>
+
+    </section>
+
+</main>
+
+<script>
+  const nomeModeloEl = document.querySelector('#nomeModelo');
+  const baixarBtn    = document.querySelector('#baixar');
+  const rotuloBotao  = baixarBtn.querySelector('.rotulo-botao');
+  const cancelarBtn  = document.querySelector('#cancelar');
+  const statusEl     = document.querySelector('#status');
+  const barraEl      = document.querySelector('#barra');
+  const percentualEl = document.querySelector('#percentual');
+  const camadaAtualEl = document.querySelector('#camadaAtual');
+  const statBaixado    = document.querySelector('#statBaixado');
+  const statVelocidade = document.querySelector('#statVelocidade');
+  const statRestante   = document.querySelector('#statRestante');
+  const mensagemEl   = document.querySelector('#mensagem');
+
+  const textoOriginalBotao = rotuloBotao.textContent;
+
+  let controlador = null;
+  let intervaloVelocidade = null;
+
+  // ---- acumulador de progresso: um modelo tem várias camadas (blobs),
+  // cada uma com seu próprio total — por isso guardamos por "digest" e
+  // somamos tudo, em vez de calcular % só da camada atual (aula 17) ----
+  let totalPorCamada = {};
+  let completadoPorCamada = {};
+  let camadasVistas = 0;
+
+  let ultimoBytesAmostra = 0;
+  let ultimoInstanteAmostra = 0;
+
+  function formatarBytes(bytes) {
+    if (!bytes || bytes <= 0) return '0 MB';
+    const gb = bytes / (1024 ** 3);
+    if (gb >= 1) return gb.toFixed(2) + ' GB';
+    const mb = bytes / (1024 ** 2);
+    return mb.toFixed(0) + ' MB';
+  }
+
+  function formatarTempoRestante(segundos) {
+    if (!isFinite(segundos) || segundos < 0) return 'calculando...';
+    if (segundos < 60) return Math.ceil(segundos) + 's restantes';
+    return Math.ceil(segundos / 60) + ' min restantes';
+  }
+
+  function calcularProgresso() {
+    const totalGeral = Object.values(totalPorCamada).reduce((soma, v) => soma + v, 0);
+    const baixadoGeral = Object.values(completadoPorCamada).reduce((soma, v) => soma + v, 0);
+    return { totalGeral, baixadoGeral };
+  }
+
+  function atualizarBarra(pct) {
+    barraEl.style.width = Math.min(pct, 100) + '%';
+    percentualEl.textContent = Math.min(pct, 100).toFixed(0) + '%';
+  }
+
+  // traduz os status crus do Ollama pra frases que fazem sentido pra
+  // quem está vendo a tela, sem jargão de protocolo
+  function traduzirStatus(status) {
+    if (!status) return '';
+    if (status === 'pulling manifest') return 'Baixando informações do modelo...';
+    if (status.startsWith('pulling ')) return 'Baixando arquivos do modelo...';
+    if (status === 'verifying sha256 digest') return 'Verificando integridade dos arquivos...';
+    if (status === 'writing manifest') return 'Finalizando instalação...';
+    if (status === 'removing any unused layers') return 'Limpando arquivos temporários...';
+    if (status === 'success') return 'Modelo instalado com sucesso!';
+    return status;
+  }
+
+  function mensagemDeErro(erro, nome) {
+    const texto = (erro && erro.message) || '';
+    const minuscula = texto.toLowerCase();
+
+    if (minuscula.includes('not found') || minuscula.includes('file does not exist') || minuscula.includes('manifest unknown')) {
+      return 'Não encontrei o modelo "' + nome + '". Confira o nome em ollama.com/library.';
+    }
+    if (minuscula.includes('failed to fetch') || minuscula.includes('networkerror')) {
+      return 'Não consegui falar com o Ollama. Confira se ele está rodando em localhost:11434.';
+    }
+    if (minuscula.includes('no space') || minuscula.includes('disk')) {
+      return 'Parece que não há espaço em disco suficiente para baixar este modelo.';
+    }
+    return 'Não foi possível baixar o modelo: ' + texto;
+  }
+
+  function mostrarMensagem(tipo, texto) {
+    mensagemEl.className = 'mensagem ' + tipo;
+    mensagemEl.textContent = texto;
+    mensagemEl.hidden = false;
+  }
+
+  function resetarTela() {
+    totalPorCamada = {};
+    completadoPorCamada = {};
+    camadasVistas = 0;
+    ultimoBytesAmostra = 0;
+    ultimoInstanteAmostra = performance.now();
+
+    atualizarBarra(0);
+    camadaAtualEl.textContent = '';
+    statBaixado.textContent = '0 MB / 0 MB';
+    statVelocidade.textContent = '—';
+    statRestante.textContent = '—';
+
+    mensagemEl.hidden = true;
+    mensagemEl.textContent = '';
+  }
+
+  async function baixarModelo() {
+    const nome = nomeModeloEl.value.trim();
+    if (!nome) {
+      nomeModeloEl.focus();
+      return;
+    }
+
+    resetarTela();
+    controlador = new AbortController();
+
+    baixarBtn.disabled = true;
+    baixarBtn.classList.add('carregando');
+    rotuloBotao.textContent = 'Baixando...';
+    nomeModeloEl.disabled = true;
+    cancelarBtn.hidden = false;
+    statusEl.textContent = 'Conectando ao Ollama...';
+
+    // amostra a velocidade a cada 800ms, comparando quanto foi baixado
+    // desde a última amostra — o mesmo princípio do cronômetro da aula 9
+    intervaloVelocidade = setInterval(() => {
+      const { totalGeral, baixadoGeral } = calcularProgresso();
+      const agora = performance.now();
+      const segundosDelta = (agora - ultimoInstanteAmostra) / 1000;
+
+      if (segundosDelta > 0) {
+        const bytesDelta = baixadoGeral - ultimoBytesAmostra;
+        const mbPorSegundo = (bytesDelta / (1024 ** 2)) / segundosDelta;
+
+        if (mbPorSegundo > 0) {
+          statVelocidade.textContent = mbPorSegundo.toFixed(1) + ' MB/s';
+
+          const faltando = totalGeral - baixadoGeral;
+          if (faltando > 0) {
+            const segundosFaltando = (faltando / (1024 ** 2)) / mbPorSegundo;
+            statRestante.textContent = formatarTempoRestante(segundosFaltando);
+          }
+        }
+      }
+
+      ultimoBytesAmostra = baixadoGeral;
+      ultimoInstanteAmostra = agora;
+    }, 800);
+
+    try {
+      const r = await fetch('http://localhost:11434/api/pull', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: nome, stream: true }),
+        signal: controlador.signal
+      });
+
+      if (!r.ok) {
+        throw new Error('O Ollama respondeu com erro: ' + r.status);
+      }
+
+      const leitor = r.body.getReader();
+      const decoder = new TextDecoder();
+      let sobra = '';
+
+      while (true) {
+        const { value, done } = await leitor.read();
+        if (done) break;
+
+        sobra += decoder.decode(value, { stream: true });
+        const linhas = sobra.split('\n');
+        sobra = linhas.pop();
+
+        for (const linha of linhas) {
+          if (!linha.trim()) continue;
+          const evento = JSON.parse(linha);
+
+          if (evento.error) {
+            throw new Error(evento.error);
+          }
+
+          statusEl.textContent = traduzirStatus(evento.status);
+
+          // camada nova ou atualização de uma já vista: acumula por digest
+          if (evento.digest && evento.total) {
+            if (!(evento.digest in totalPorCamada)) camadasVistas++;
+
+            totalPorCamada[evento.digest] = evento.total;
+            completadoPorCamada[evento.digest] = evento.completed || 0;
+
+            const { totalGeral, baixadoGeral } = calcularProgresso();
+            const pct = totalGeral > 0 ? (baixadoGeral / totalGeral) * 100 : 0;
+
+            atualizarBarra(pct);
+            statBaixado.textContent = formatarBytes(baixadoGeral) + ' / ' + formatarBytes(totalGeral);
+            camadaAtualEl.textContent = camadasVistas + ' camada(s)';
+          }
+
+          if (evento.status === 'success') {
+            atualizarBarra(100);
+            statVelocidade.textContent = '—';
+            statRestante.textContent = 'concluído';
+            mostrarMensagem('sucesso', '"' + nome + '" foi instalado com sucesso! Ele já aparece em "ollama list".');
+          }
+        }
+      }
+
+    } catch (erro) {
+      if (erro.name === 'AbortError') {
+        mostrarMensagem('info', 'Download cancelado.');
+        statusEl.textContent = 'Cancelado pelo usuário.';
+      } else {
+        mostrarMensagem('erro', mensagemDeErro(erro, nome));
+        statusEl.textContent = 'Falhou.';
+        console.error(erro);
+      }
+    } finally {
+      clearInterval(intervaloVelocidade);
+      baixarBtn.disabled = false;
+      baixarBtn.classList.remove('carregando');
+      rotuloBotao.textContent = textoOriginalBotao;
+      nomeModeloEl.disabled = false;
+      cancelarBtn.hidden = true;
+      controlador = null;
+    }
+  }
+
+  cancelarBtn.addEventListener('click', () => {
+    if (controlador) controlador.abort();
+  });
+
+  baixarBtn.addEventListener('click', baixarModelo);
+
+  nomeModeloEl.addEventListener('keydown', (evento) => {
+    if (evento.key === 'Enter' && !baixarBtn.disabled) {
+      evento.preventDefault();
+      baixarModelo();
+    }
+  });
+
+  resetarTela();
+</script>
+
+</body>
+</html>
