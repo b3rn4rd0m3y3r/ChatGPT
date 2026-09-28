@@ -1,0 +1,1452 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Simulador de Circuitos Eletrônicos</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg-main: #FFF5F7; --bg-panel: #FDEEF2; --bg-canvas: #FFFFFF;
+    --accent-pink: #FFB3BA; --accent-green: #BAFFC9; --accent-blue: #BAE1FF;
+    --accent-yellow: #FFFFBA; --accent-purple: #E0BBE4;
+    --text-dark: #4A3F44; --text-mid: #7A6B72; --border-soft: #F0D9E0;
+    --danger: #FF8A8A; --simulate: #FF6B6B;
+    --shadow: 0 2px 8px rgba(180, 140, 150, 0.15);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg-main); color: var(--text-dark); }
+  .app { display: grid; grid-template-columns: 220px 1fr 280px; grid-template-rows: auto 1fr auto; grid-template-areas: "header header header" "tools canvas inspector" "scope scope scope"; min-height: 100vh; }
+  header { grid-area: header; background: linear-gradient(90deg, #FFE5EC, #E8F4F8); padding: 14px 24px; border-bottom: 1px solid var(--border-soft); display: flex; justify-content: space-between; align-items: center; box-shadow: var(--shadow); }
+  header h1 { font-size: 20px; color: var(--text-dark); font-weight: 600; }
+  header h1 span { color: #D88A9A; }
+  .header-actions { display: flex; gap: 10px; align-items: center; }
+  .btn-simulate { background: var(--simulate); color: white; border: none; padding: 10px 22px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px; box-shadow: 0 3px 8px rgba(255, 107, 107, 0.35); }
+  .btn-simulate:hover { background: #FF5252; }
+  .btn-simulate.running { background: #7BC89C; }
+  .btn-clear, .btn-example { background: var(--accent-purple); color: var(--text-dark); border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500; }
+  .btn-example { background: var(--accent-blue); }
+  .tools { grid-area: tools; background: var(--bg-panel); padding: 16px; border-right: 1px solid var(--border-soft); overflow-y: auto; }
+  .tools h3 { font-size: 13px; color: var(--text-mid); margin-bottom: 10px; text-transform: uppercase; }
+  .tool-btn { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; margin-bottom: 6px; background: white; border: 1px solid var(--border-soft); border-radius: 8px; cursor: pointer; font-size: 13px; color: var(--text-dark); }
+  .tool-btn:hover { background: #FFF0F4; }
+  .tool-btn.active { background: var(--accent-pink); border-color: #FF9AA2; color: white; font-weight: 600; }
+  .canvas-wrap { grid-area: canvas; background: var(--bg-main); padding: 16px; overflow: auto; position: relative; }
+  .canvas-container { background: var(--bg-canvas); border-radius: 12px; box-shadow: var(--shadow); border: 1px solid var(--border-soft); display: inline-block; position: relative; }
+  #circuit { display: block; cursor: crosshair; }
+  .inspector { grid-area: inspector; background: var(--bg-panel); padding: 16px; border-left: 1px solid var(--border-soft); overflow-y: auto; }
+  .inspector h3 { font-size: 13px; color: var(--text-mid); margin-bottom: 12px; text-transform: uppercase; }
+  .inspector-empty { color: var(--text-mid); font-size: 13px; font-style: italic; padding: 20px 0; text-align: center; }
+  .prop-group { background: white; border-radius: 8px; padding: 12px; margin-bottom: 10px; border: 1px solid var(--border-soft); }
+  .prop-group label { display: block; font-size: 12px; color: var(--text-mid); margin-bottom: 4px; }
+  .prop-group input { width: 100%; padding: 6px 8px; border: 1px solid var(--border-soft); border-radius: 6px; font-size: 13px; }
+  .prop-row { margin-bottom: 8px; }
+  .btn-delete { width: 100%; background: var(--danger); color: white; border: none; padding: 10px; border-radius: 8px; cursor: pointer; font-weight: 600; margin-top: 10px; }
+  .component-info { background: white; border-radius: 8px; padding: 10px; margin-bottom: 10px; border: 1px solid var(--border-soft); font-size: 12px; }
+  .component-info .type { font-weight: 600; color: #D88A9A; margin-bottom: 4px; }
+  .scope-area { grid-area: scope; background: var(--bg-panel); border-top: 1px solid var(--border-soft); padding: 16px; display: grid; grid-template-columns: 1fr 240px; gap: 16px; }
+  .scope-chart { background: white; border-radius: 12px; padding: 12px; box-shadow: var(--shadow); height: 280px; }
+  .scope-metrics { background: white; border-radius: 12px; padding: 14px; box-shadow: var(--shadow); }
+  .scope-metrics h4 { font-size: 13px; color: var(--text-mid); margin-bottom: 10px; text-transform: uppercase; }
+  .metric { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #F5E8EC; font-size: 13px; }
+  .metric:last-child { border-bottom: none; }
+  .metric-label { color: var(--text-mid); }
+  .metric-value { font-weight: 600; font-family: 'Consolas', monospace; }
+  .status-badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+  .status-idle { background: var(--accent-yellow); color: #8A7A00; }
+  .status-running { background: var(--accent-green); color: #2A6B42; }
+  .status-error { background: var(--danger); color: white; }
+  .hint { position: absolute; bottom: 10px; left: 10px; background: rgba(255,255,255,0.95); padding: 6px 12px; border-radius: 6px; font-size: 12px; color: var(--text-mid); border: 1px solid var(--border-soft); pointer-events: none; }
+  .debug-log { position: absolute; top: 10px; right: 10px; background: rgba(255,255,255,0.98); padding: 10px 12px; border-radius: 6px; font-size: 10px; color: var(--text-mid); border: 1px solid var(--border-soft); max-width: 380px; max-height: 250px; overflow-y: auto; font-family: 'Consolas', monospace; pointer-events: none; line-height: 1.4; white-space: pre-wrap; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: #FDF5F7; }
+  ::-webkit-scrollbar-thumb { background: #E8C5CE; border-radius: 5px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1> Simulador de Circuitos <span>Eletrônicos</span></h1>
+    <div class="header-actions">
+      <button class="btn-example" id="btnExample">📋 Exemplo</button>
+      <button class="btn-clear" id="btnClear">🗑 Limpar</button>
+      <button class="btn-simulate" id="btnSimulate">▶ Simular</button>
+    </div>
+  </header>
+  <aside class="tools">
+    <h3>Ferramentas</h3>
+    <button class="tool-btn" data-tool="select"><span class="tool-icon">⬚</span>Selecionar</button>
+    <button class="tool-btn" data-tool="wire"><span class="tool-icon">━</span>Fio</button>
+    <button class="tool-btn" data-tool="resistor"><span class="tool-icon">⏛</span>Resistor</button>
+    <button class="tool-btn" data-tool="capacitor"><span class="tool-icon"></span>Capacitor</button>
+    <button class="tool-btn" data-tool="dcSource"><span class="tool-icon">⎓</span>Fonte DC</button>
+    <button class="tool-btn" data-tool="acSource"><span class="tool-icon">∿</span>Fonte AC</button>
+    <button class="tool-btn" data-tool="transformer"><span class="tool-icon">T</span>Transformador</button>
+    <button class="tool-btn" data-tool="diode"><span class="tool-icon">▷|</span>Diodo</button>
+    <button class="tool-btn" data-tool="npn"><span class="tool-icon"></span>NPN</button>
+  </aside>
+  <main class="canvas-wrap">
+    <div class="canvas-container">
+      <canvas id="circuit" width="1280" height="800"></canvas>
+      <div class="hint" id="hint">Selecione uma ferramenta e clique em dois nós</div>
+      <div class="debug-log" id="debugLog">Pronto</div>
+    </div>
+  </main>
+  <aside class="inspector">
+    <h3>Inspetor</h3>
+    <div id="inspectorContent"><div class="inspector-empty">Nenhum componente selecionado</div></div>
+  </aside>
+  <section class="scope-area">
+    <div class="scope-chart"><canvas id="oscilloscope"></canvas></div>
+    <div class="scope-metrics">
+      <h4>Métricas</h4>
+      <div class="metric"><span class="metric-label">Vmax:</span><span class="metric-value" id="mVmax">—</span></div>
+      <div class="metric"><span class="metric-label">Corrente:</span><span class="metric-value" id="mCurrent">—</span></div>
+      <div class="metric"><span class="metric-label">Nominal:</span><span class="metric-value" id="mNominal">—</span></div>
+      <div class="metric"><span class="metric-label">Status:</span><span class="metric-value" id="mStatus"><span class="status-badge status-idle">Ocioso</span></span></div>
+    </div>
+  </section>
+</div>
+
+<script>
+const Utils = {
+  uid: () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+  dist: (a, b) => Math.hypot(a.x - b.x, a.y - b.y),
+  clamp: (v, lo, hi) => Math.max(lo, Math.min(hi, v)),
+  fmt: (v, unit = '', digits = 3) => {
+    if (!isFinite(v)) return '—';
+    const abs = Math.abs(v);
+    if (abs >= 1e6) return (v/1e6).toFixed(digits) + 'M' + unit;
+    if (abs >= 1e3) return (v/1e3).toFixed(digits) + 'k' + unit;
+    if (abs < 1e-3 && abs > 0) return (v*1e6).toFixed(digits) + 'µ' + unit;
+    if (abs < 1 && abs > 0) return (v*1e3).toFixed(digits) + 'm' + unit;
+    return v.toFixed(digits) + unit;
+  }
+};
+
+const GRID = { cols: 32, rows: 20, spacing: 40, offsetX: 20, offsetY: 20 };
+GRID.width = GRID.offsetX * 2 + (GRID.cols - 1) * GRID.spacing;
+GRID.height = GRID.offsetY * 2 + (GRID.rows - 1) * GRID.spacing;
+
+class GridNode {
+  constructor(col, row) {
+    this.col = col; this.row = row;
+    this.x = GRID.offsetX + col * GRID.spacing;
+    this.y = GRID.offsetY + row * GRID.spacing;
+    this.id = `n_${col}_${row}`;
+    this.voltage = 0;
+  }
+}
+
+class Component {
+  constructor(type, nodes, params = {}) {
+    this.id = Utils.uid();
+    this.type = type;
+    this.nodes = nodes;
+    this.params = params;
+    this.selected = false;
+    this.current = 0;
+    this.voltage = 0;
+  }
+  get center() {
+    const xs = this.nodes.map(n => n.x);
+    const ys = this.nodes.map(n => n.y);
+    return { x: (Math.min(...xs)+Math.max(...xs))/2, y: (Math.min(...ys)+Math.max(...ys))/2 };
+  }
+  hitTest(px, py) { return false; }
+  draw(ctx) {}
+}
+
+class Wire extends Component {
+  constructor(n1, n2) { super('wire', [n1, n2]); }
+  hitTest(px, py) {
+    const [a, b] = this.nodes;
+    const len = Utils.dist(a, b);
+    if (len < 1) return false;
+    const t = Utils.clamp(((px-a.x)*(b.x-a.x) + (py-a.y)*(b.y-a.y)) / (len*len), 0, 1);
+    const cx = a.x + t*(b.x-a.x), cy = a.y + t*(b.y-a.y);
+    return Math.hypot(px-cx, py-cy) < 6;
+  }
+  draw(ctx) {
+    const [a, b] = this.nodes;
+    ctx.strokeStyle = this.selected ? '#FF6B9D' : '#8B7A83';
+    ctx.lineWidth = this.selected ? 3 : 2;
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+  }
+}
+
+class Resistor extends Component {
+  constructor(n1, n2) { super('resistor', [n1, n2], { resistance: 1000 }); }
+  hitTest(px, py) {
+    const [a, b] = this.nodes;
+    const len = Utils.dist(a, b);
+    if (len < 1) return false;
+    const t = Utils.clamp(((px-a.x)*(b.x-a.x) + (py-a.y)*(b.y-a.y)) / (len*len), 0, 1);
+    const cx = a.x + t*(b.x-a.x), cy = a.y + t*(b.y-a.y);
+    return Math.hypot(px-cx, py-cy) < 14;
+  }
+  draw(ctx) {
+    const [a, b] = this.nodes;
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 1) return;
+    const ux = dx/len, uy = dy/len;
+    const px = -uy, py = ux;
+    const bodyStart = 0.3, bodyEnd = 0.7;
+    const zigzags = 5, amp = 8;
+    ctx.strokeStyle = this.selected ? '#FF6B9D' : '#D88A9A';
+    ctx.lineWidth = this.selected ? 2.5 : 2;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(a.x + ux*len*bodyStart, a.y + uy*len*bodyStart);
+    for (let i = 0; i <= zigzags; i++) {
+      const t = bodyStart + (bodyEnd - bodyStart) * (i / zigzags);
+      const side = (i % 2 === 0) ? 1 : -1;
+      ctx.lineTo(a.x + ux*len*t + px*amp*side, a.y + uy*len*t + py*amp*side);
+    }
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+    if (this.selected) {
+      ctx.fillStyle = '#4A3F44'; ctx.font = '11px Segoe UI';
+      ctx.fillText(`${Utils.fmt(this.params.resistance, 'Ω', 1)}`, this.center.x + 10, this.center.y - 10);
+    }
+  }
+}
+
+class Capacitor extends Component {
+  constructor(n1, n2) { super('capacitor', [n1, n2], { capacitance: 1e-6 }); }
+  hitTest(px, py) {
+    const [a, b] = this.nodes;
+    const len = Utils.dist(a, b);
+    if (len < 1) return false;
+    const t = Utils.clamp(((px-a.x)*(b.x-a.x) + (py-a.y)*(b.y-a.y)) / (len*len), 0, 1);
+    const cx = a.x + t*(b.x-a.x), cy = a.y + t*(b.y-a.y);
+    return Math.hypot(px-cx, py-cy) < 14;
+  }
+  draw(ctx) {
+    const [a, b] = this.nodes;
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 1) return;
+    const ux = dx/len, uy = dy/len;
+    const px = -uy, py = ux;
+    const midX = (a.x+b.x)/2, midY = (a.y+b.y)/2;
+    const gap = 3, plateW = 10;
+    ctx.strokeStyle = this.selected ? '#FF6B9D' : '#7BA7C9';
+    ctx.lineWidth = this.selected ? 2.5 : 2;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y); ctx.lineTo(midX - ux*gap, midY - uy*gap);
+    ctx.moveTo(midX + ux*gap, midY + uy*gap); ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(midX - ux*gap + px*plateW, midY - uy*gap + py*plateW);
+    ctx.lineTo(midX - ux*gap - px*plateW, midY - uy*gap - py*plateW);
+    ctx.moveTo(midX + ux*gap + px*plateW, midY + uy*gap + py*plateW);
+    ctx.lineTo(midX + ux*gap - px*plateW, midY + uy*gap - py*plateW);
+    ctx.stroke();
+  }
+}
+
+class DCSource extends Component {
+  constructor(n1, n2) { super('dcSource', [n1, n2], { voltage: 5 }); }
+  hitTest(px, py) { const c = this.center; return Math.hypot(px-c.x, py-c.y) < 16; }
+  draw(ctx) {
+    const [a, b] = this.nodes;
+    const c = this.center;
+    const r = 14;
+    ctx.strokeStyle = this.selected ? '#FF6B9D' : '#9A7BB5';
+    ctx.lineWidth = this.selected ? 2.5 : 2;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y); ctx.lineTo(c.x - r, c.y);
+    ctx.moveTo(c.x + r, c.y); ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, r, 0, Math.PI*2);
+    ctx.fillStyle = '#F5E8F0'; ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#4A3F44';
+    ctx.font = 'bold 12px Segoe UI';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('DC', c.x, c.y);
+    ctx.font = '10px Segoe UI';
+    ctx.fillText('+', a.x, a.y - 8);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    if (this.selected) {
+      ctx.fillStyle = '#4A3F44'; ctx.font = '11px Segoe UI';
+      ctx.fillText(`${this.params.voltage.toFixed(1)}V`, c.x + 18, c.y - 10);
+    }
+  }
+}
+
+class ACSource extends Component {
+  constructor(n1, n2) { super('acSource', [n1, n2], { amplitude: 5, frequency: 60, phase: 0 }); }
+  hitTest(px, py) { const c = this.center; return Math.hypot(px-c.x, py-c.y) < 16; }
+  draw(ctx) {
+    const [a, b] = this.nodes;
+    const c = this.center;
+    const r = 14;
+    ctx.strokeStyle = this.selected ? '#FF6B9D' : '#E8A87C';
+    ctx.lineWidth = this.selected ? 2.5 : 2;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y); ctx.lineTo(c.x - r, c.y);
+    ctx.moveTo(c.x + r, c.y); ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, r, 0, Math.PI*2);
+    ctx.fillStyle = '#FFF0E0'; ctx.fill(); ctx.stroke();
+    ctx.beginPath();
+    for (let i = -8; i <= 8; i++) {
+      const x = c.x + i;
+      const y = c.y - Math.sin(i * 0.4) * 4;
+      if (i === -8) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = '#4A3F44'; ctx.lineWidth = 1.5; ctx.stroke();
+    if (this.selected) {
+      ctx.fillStyle = '#4A3F44'; ctx.font = '11px Segoe UI';
+      ctx.fillText(`${this.params.amplitude.toFixed(1)}V ${this.params.frequency}Hz`, c.x + 18, c.y - 10);
+    }
+  }
+}
+
+// ALTERAÇÃO 1: Transformer com campos de correntes separadas
+class Transformer extends Component {
+  constructor(n1, n2, n3, n4) { 
+    super('transformer', [n1, n2, n3, n4], { Np: 100, Ns: 100 });
+    this.primaryCurrent = 0;
+    this.secondaryCurrent = 0;
+  }
+  hitTest(px, py) { const c = this.center; return Math.hypot(px-c.x, py-c.y) < 30; }
+  draw(ctx) {
+    const [p1, p2, s1, s2] = this.nodes;
+    const color = this.selected ? '#FF6B9D' : '#6BA8A8';
+    const lineWidth = this.selected ? 2.5 : 2;
+    const allX = [p1.x, p2.x, s1.x, s2.x];
+    const allY = [p1.y, p2.y, s1.y, s2.y];
+    const minX = Math.min(...allX), maxX = Math.max(...allX);
+    const minY = Math.min(...allY), maxY = Math.max(...allY);
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+    const primaryX = centerX - 15;
+    const secondaryX = centerX + 15;
+    const coilTop = minY + 15;
+    const coilBottom = maxY - 15;
+    const coilHeight = coilBottom - coilTop;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(primaryX - 8, p1.y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(p2.x, p2.y); ctx.lineTo(primaryX - 8, p2.y); ctx.stroke();
+    const numTurns = 4;
+    const turnSpacing = coilHeight / (numTurns + 1);
+    ctx.beginPath();
+    for (let i = 0; i < numTurns; i++) {
+      const y = coilTop + turnSpacing * (i + 1);
+      ctx.moveTo(primaryX - 8, y);
+      ctx.arc(primaryX - 8, y, 6, -Math.PI/2, Math.PI/2);
+    }
+    ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(s1.x, s1.y); ctx.lineTo(secondaryX + 8, s1.y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(s2.x, s2.y); ctx.lineTo(secondaryX + 8, s2.y); ctx.stroke();
+    ctx.beginPath();
+    for (let i = 0; i < numTurns; i++) {
+      const y = coilTop + turnSpacing * (i + 1);
+      ctx.moveTo(secondaryX + 8, y);
+      ctx.arc(secondaryX + 8, y, 6, Math.PI/2, -Math.PI/2);
+    }
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(centerX - 2, coilTop - 5); ctx.lineTo(centerX - 2, coilBottom + 5);
+    ctx.moveTo(centerX + 2, coilTop - 5); ctx.lineTo(centerX + 2, coilBottom + 5);
+    ctx.stroke();
+    ctx.fillStyle = '#4A3F44';
+    ctx.font = 'bold 11px Segoe UI';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('P', primaryX - 8, coilTop - 12);
+    ctx.fillText('S', secondaryX + 8, coilTop - 12);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    if (this.selected) {
+      ctx.fillStyle = '#4A3F44'; ctx.font = '11px Segoe UI';
+      ctx.fillText(`Np:${this.params.Np} Ns:${this.params.Ns}`, centerX + 25, centerY);
+    }
+  }
+}
+
+class Diode extends Component {
+  constructor(n1, n2) { super('diode', [n1, n2], { forwardVoltage: 0.7 }); }
+  hitTest(px, py) {
+    const [a, b] = this.nodes;
+    const len = Utils.dist(a, b);
+    if (len < 1) return false;
+    const t = Utils.clamp(((px-a.x)*(b.x-a.x) + (py-a.y)*(b.y-a.y)) / (len*len), 0, 1);
+    const cx = a.x + t*(b.x-a.x), cy = a.y + t*(b.y-a.y);
+    return Math.hypot(px-cx, py-cy) < 14;
+  }
+  draw(ctx) {
+    const [a, b] = this.nodes;
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 1) return;
+    const ux = dx/len, uy = dy/len;
+    const px = -uy, py = ux;
+    const midX = (a.x+b.x)/2, midY = (a.y+b.y)/2;
+    const triH = 10, triW = 8;
+    ctx.strokeStyle = this.selected ? '#FF6B9D' : '#7BA87B';
+    ctx.fillStyle = '#E8F5E8';
+    ctx.lineWidth = this.selected ? 2.5 : 2;
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(midX - ux*triH/2, midY - uy*triH/2); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(midX - ux*triH/2, midY - uy*triH/2);
+    ctx.lineTo(midX + ux*triH/2, midY + uy*triH/2);
+    ctx.lineTo(midX - ux*triH/2 + px*triW, midY - uy*triH/2 + py*triW);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(midX + ux*triH/2 + px*triW, midY + uy*triH/2 + py*triW);
+    ctx.lineTo(midX + ux*triH/2 - px*triW, midY + uy*triH/2 - py*triW);
+    ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(midX + ux*triH/2, midY + uy*triH/2); ctx.lineTo(b.x, b.y); ctx.stroke();
+  }
+}
+
+class TransistorNPN extends Component {
+  constructor(nBase, nCollector, nEmitter) { super('npn', [nBase, nCollector, nEmitter], { beta: 100 }); }
+  hitTest(px, py) { const c = this.center; return Math.hypot(px-c.x, py-c.y) < 18; }
+  draw(ctx) {
+    const [B, C, E] = this.nodes;
+    const color = this.selected ? '#FF6B9D' : '#B58AC9';
+    ctx.strokeStyle = color;
+    ctx.lineWidth = this.selected ? 2.5 : 2;
+    const cx = this.center.x, cy = this.center.y;
+    ctx.beginPath(); ctx.arc(cx, cy, 16, 0, Math.PI*2);
+    ctx.fillStyle = '#F5E8F8'; ctx.fill(); ctx.stroke();
+    const bx = cx - 6;
+    ctx.beginPath(); ctx.moveTo(bx, cy - 10); ctx.lineTo(bx, cy + 10); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(B.x, B.y); ctx.lineTo(bx, B.y < cy ? cy - 5 : cy + 5); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(bx, cy - 5); ctx.lineTo(cx + 6, cy - 10); ctx.lineTo(C.x, C.y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(bx, cy + 5); ctx.lineTo(cx + 6, cy + 10); ctx.lineTo(E.x, E.y); ctx.stroke();
+    const ax = cx + 2, ay = cy + 8;
+    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(ax + 4, ay + 2); ctx.lineTo(ax + 2, ay - 3); ctx.closePath();
+    ctx.fillStyle = color; ctx.fill();
+    ctx.fillStyle = '#4A3F44'; ctx.font = '9px Segoe UI';
+    ctx.textAlign = 'center';
+    ctx.fillText('B', B.x - 8, B.y);
+    ctx.fillText('C', C.x + 8, C.y);
+    ctx.fillText('E', E.x + 8, E.y);
+    ctx.textAlign = 'left';
+    if (this.selected) {
+      ctx.font = '11px Segoe UI';
+      ctx.fillText(`β:${this.params.beta}`, cx + 18, cy - 14);
+    }
+  }
+}
+
+class Circuit {
+  constructor() {
+    this.gridNodes = new Map();
+    this.components = new Map();
+    this.selectedId = null;
+    this.history = [];
+    this.initGrid();
+  }
+  initGrid() {
+    for (let r = 0; r < GRID.rows; r++) {
+      for (let c = 0; c < GRID.cols; c++) {
+        const n = new GridNode(c, r);
+        this.gridNodes.set(n.id, n);
+      }
+    }
+  }
+  getNode(col, row) { return this.gridNodes.get(`n_${col}_${row}`); }
+  findNodeAt(x, y, tolerance = 10) {
+    for (const n of this.gridNodes.values()) {
+      if (Math.hypot(n.x - x, n.y - y) < tolerance) return n;
+    }
+    return null;
+  }
+  addComponent(comp) { this.components.set(comp.id, comp); }
+  removeComponent(id) { this.components.delete(id); if (this.selectedId === id) this.selectedId = null; }
+  selectComponent(id) {
+    for (const c of this.components.values()) c.selected = (c.id === id);
+    this.selectedId = id;
+  }
+  findComponentAt(x, y) {
+    const comps = Array.from(this.components.values()).reverse();
+    for (const c of comps) { if (c.hitTest(x, y)) return c; }
+    return null;
+  }
+  getActiveNodes() {
+    const active = new Set();
+    for (const c of this.components.values()) {
+      for (const n of c.nodes) active.add(n.id);
+    }
+    return active;
+  }
+}
+
+class Solver {
+  constructor(circuit) { 
+    this.circuit = circuit; 
+    this.log = [];
+    this.capacitorVoltages = new Map(); // id -> tensão anterior
+  }
+
+  buildElectricalNodes() {
+    const c = this.circuit;
+    const activeNodes = c.getActiveNodes();
+    const parent = new Map();
+    for (const nodeId of activeNodes) parent.set(nodeId, nodeId);
+    const find = (x) => {
+      let r = x;
+      while (parent.get(r) !== r) r = parent.get(r);
+      let cur = x;
+      while (cur !== r) { const next = parent.get(cur); parent.set(cur, r); cur = next; }
+      return r;
+    };
+    const union = (a, b) => {
+      const ra = find(a), rb = find(b);
+      if (ra !== rb) parent.set(ra, rb);
+    };
+    for (const comp of c.components.values()) {
+      if (comp.type === 'wire' && comp.nodes.length === 2) {
+        union(comp.nodes[0].id, comp.nodes[1].id);
+      }
+    }
+    const electricalNodes = [];
+    const nodeToElecIdx = new Map();
+    const rootToIdx = new Map();
+    for (const nodeId of activeNodes) {
+      const root = find(nodeId);
+      if (!rootToIdx.has(root)) {
+        rootToIdx.set(root, electricalNodes.length);
+        electricalNodes.push([]);
+      }
+      const idx = rootToIdx.get(root);
+      electricalNodes[idx].push(c.gridNodes.get(nodeId));
+      nodeToElecIdx.set(nodeId, idx);
+    }
+    return { electricalNodes, nodeToElecIdx, numNodes: electricalNodes.length, find };
+  }
+
+  handleTransformers() {
+    const c = this.circuit;
+    const { nodeToElecIdx } = this.buildElectricalNodes();
+    this.log = [];
+    this.log.push('=== DIAGNÓSTICO DO TRANSFORMADOR ===\n');
+    
+    for (const comp of c.components.values()) {
+      if (comp.type !== 'transformer') continue;
+      const [p1, p2, s1, s2] = comp.nodes;
+      const p1Elec = nodeToElecIdx.get(p1.id);
+      const p2Elec = nodeToElecIdx.get(p2.id);
+      const s1Elec = nodeToElecIdx.get(s1.id);
+      const s2Elec = nodeToElecIdx.get(s2.id);
+      this.log.push(`Trafo: P(grp${p1Elec},grp${p2Elec}) S(grp${s1Elec},grp${s2Elec})`);
+      
+      let primarySource = null;
+      for (const other of c.components.values()) {
+        if (other.type !== 'acSource' && other.type !== 'dcSource') continue;
+        const src1Elec = nodeToElecIdx.get(other.nodes[0].id);
+        const src2Elec = nodeToElecIdx.get(other.nodes[1].id);
+        if ((src1Elec === p1Elec && src2Elec === p2Elec) ||
+            (src1Elec === p2Elec && src2Elec === p1Elec)) {
+          primarySource = other;
+          this.log.push(`  ✅ FONTE ENCONTRADA no primário!`);
+          break;
+        }
+      }
+      
+      if (!primarySource) {
+        this.log.push(`  ❌ NENHUMA fonte conectada ao primário!`);
+      }
+      
+      if (primarySource && primarySource.type === 'dcSource') {
+        comp._secondaryVoltage = 0;
+        comp._primaryVoltage = primarySource.params.voltage;
+      } else if (primarySource && primarySource.type === 'acSource') {
+        const vp = primarySource._instantVoltage || 0;
+        comp._primaryVoltage = vp;
+        comp._secondaryVoltage = vp * (comp.params.Ns / comp.params.Np);
+      } else {
+        comp._primaryVoltage = 0;
+        comp._secondaryVoltage = 0;
+      }
+    }
+  }
+
+  solveInstant(dt = 1/12000) {
+    const { electricalNodes, nodeToElecIdx, numNodes } = this.buildElectricalNodes();
+    const c = this.circuit;
+
+    if (numNodes === 0) {
+      return { success: false, message: 'Nenhum componente' };
+    }
+
+    let refElecIdx = -1;
+    for (const comp of c.components.values()) {
+      if (comp.type === 'dcSource' || comp.type === 'acSource') {
+        refElecIdx = nodeToElecIdx.get(comp.nodes[1].id);
+        break;
+      }
+    }
+    if (refElecIdx === -1) {
+      return { success: false, message: 'Sem fonte no circuito' };
+    }
+
+    let extraVars = 0;
+    const voltageSources = [];
+    for (const comp of c.components.values()) {
+      if (comp.type === 'dcSource' || comp.type === 'acSource') {
+        voltageSources.push({ comp, idx: extraVars });
+        extraVars++;
+      }
+    }
+    const transformerSources = [];
+    for (const comp of c.components.values()) {
+      if (comp.type === 'transformer' && Math.abs(comp._secondaryVoltage || 0) > 1e-9) {
+        transformerSources.push({ comp, idx: extraVars });
+        extraVars++;
+      }
+    }
+
+    const N = (numNodes - 1) + extraVars;
+    if (N <= 0) return { success: true };
+
+    const elecToMatrixIdx = (elecIdx) => {
+      if (elecIdx === refElecIdx) return -1;
+      return elecIdx < refElecIdx ? elecIdx : elecIdx - 1;
+    };
+
+    const leakValues = [1e-6, 1e-4, 1e-2];
+    let x = null;
+    let usedLeak = null;
+
+    for (const GND_LEAK of leakValues) {
+      const M = Array.from({length: N}, () => new Float64Array(N));
+      const rhs = new Float64Array(N);
+
+      for (let i = 0; i < numNodes; i++) {
+        if (i === refElecIdx) continue;
+        const a = elecToMatrixIdx(i);
+        if (a >= 0) M[a][a] += GND_LEAK;
+      }
+
+      // Resistores
+      for (const comp of c.components.values()) {
+        if (comp.type === 'resistor') {
+          const a = elecToMatrixIdx(nodeToElecIdx.get(comp.nodes[0].id));
+          const b = elecToMatrixIdx(nodeToElecIdx.get(comp.nodes[1].id));
+          const g = 1 / Math.max(comp.params.resistance, 1e-9);
+          if (a >= 0) M[a][a] += g;
+          if (b >= 0) M[b][b] += g;
+          if (a >= 0 && b >= 0) { M[a][b] -= g; M[b][a] -= g; }
+        }
+      }
+
+      // NOVO: Modelo dinâmico do capacitor (Euler backward)
+      // Capacitor C ≈ resistor R_eq = dt/C em paralelo com fonte I_eq = C*V_old/dt
+      for (const comp of c.components.values()) {
+        if (comp.type !== 'capacitor') continue;
+        const a = elecToMatrixIdx(nodeToElecIdx.get(comp.nodes[0].id));
+        const b = elecToMatrixIdx(nodeToElecIdx.get(comp.nodes[1].id));
+        const C = comp.params.capacitance;
+        const V_old = this.capacitorVoltages.get(comp.id) || 0;
+        const G_eq = C / dt;
+        const I_eq = G_eq * V_old;
+        
+        if (a >= 0) M[a][a] += G_eq;
+        if (b >= 0) M[b][b] += G_eq;
+        if (a >= 0 && b >= 0) { M[a][b] -= G_eq; M[b][a] -= G_eq; }
+        if (a >= 0) rhs[a] += I_eq;
+        if (b >= 0) rhs[b] -= I_eq;
+      }
+
+      // Impedância refletida dos transformadores
+      for (const comp of c.components.values()) {
+        if (comp.type !== 'transformer') continue;
+        const [p1, p2, s1, s2] = comp.nodes;
+        const p1Elec = nodeToElecIdx.get(p1.id);
+        const p2Elec = nodeToElecIdx.get(p2.id);
+        const s1Elec = nodeToElecIdx.get(s1.id);
+        const s2Elec = nodeToElecIdx.get(s2.id);
+        
+        let loadResistance = Infinity;
+        for (const other of c.components.values()) {
+          if (other.type === 'resistor') {
+            const ns = new Set(other.nodes.map(n => n.id));
+            if (ns.has(s1.id) && ns.has(s2.id)) {
+              loadResistance = other.params.resistance;
+              break;
+            }
+          }
+        }
+        
+        if (loadResistance === Infinity) {
+          let s1Connected = false, s2Connected = false;
+          for (const other of c.components.values()) {
+            if (other.type === 'wire' || other.type === 'resistor') {
+              const ns = new Set(other.nodes.map(n => n.id));
+              if (ns.has(s1.id)) s1Connected = true;
+              if (ns.has(s2.id)) s2Connected = true;
+            }
+          }
+          if (s1Connected && s2Connected) loadResistance = 1e6;
+        }
+        
+        if (loadResistance < Infinity) {
+          const reflectedR = loadResistance * Math.pow(comp.params.Np / comp.params.Ns, 2);
+          const reflectedG = 1 / reflectedR;
+          const a = elecToMatrixIdx(p1Elec);
+          const b = elecToMatrixIdx(p2Elec);
+          if (a >= 0) M[a][a] += reflectedG;
+          if (b >= 0) M[b][b] += reflectedG;
+          if (a >= 0 && b >= 0) { M[a][b] -= reflectedG; M[b][a] -= reflectedG; }
+        }
+      }
+
+      // Diodos
+      for (const comp of c.components.values()) {
+        if (comp.type === 'diode') {
+          const a = elecToMatrixIdx(nodeToElecIdx.get(comp.nodes[0].id));
+          const b = elecToMatrixIdx(nodeToElecIdx.get(comp.nodes[1].id));
+          const r = 1;
+          const g = 1 / r;
+          if (a >= 0) M[a][a] += g;
+          if (b >= 0) M[b][b] += g;
+          if (a >= 0 && b >= 0) { M[a][b] -= g; M[b][a] -= g; }
+          const Vf = comp.params.forwardVoltage;
+          if (a >= 0) rhs[a] += Vf / r;
+          if (b >= 0) rhs[b] -= Vf / r;
+        }
+      }
+
+      // Fontes de tensão
+      for (const vs of voltageSources) {
+        const comp = vs.comp;
+        const k = (numNodes - 1) + vs.idx;
+        const a = elecToMatrixIdx(nodeToElecIdx.get(comp.nodes[0].id));
+        const b = elecToMatrixIdx(nodeToElecIdx.get(comp.nodes[1].id));
+        if (a >= 0) M[k][a] = 1;
+        if (b >= 0) M[k][b] = -1;
+        if (a >= 0) M[a][k] = 1;
+        if (b >= 0) M[b][k] = -1;
+        let V = 0;
+        if (comp.type === 'dcSource') V = comp.params.voltage;
+        else if (comp.type === 'acSource') V = comp._instantVoltage || 0;
+        rhs[k] = V;
+      }
+
+      // Transformadores
+      for (const ts of transformerSources) {
+        const comp = ts.comp;
+        const k = (numNodes - 1) + ts.idx;
+        const s1 = elecToMatrixIdx(nodeToElecIdx.get(comp.nodes[2].id));
+        const s2 = elecToMatrixIdx(nodeToElecIdx.get(comp.nodes[3].id));
+        if (s1 >= 0) M[k][s1] = 1;
+        if (s2 >= 0) M[k][s2] = -1;
+        if (s1 >= 0) M[s1][k] = 1;
+        if (s2 >= 0) M[s2][k] = -1;
+        rhs[k] = comp._secondaryVoltage;
+      }
+
+      x = this.solveLinear(M, rhs, N);
+      if (x) {
+        usedLeak = GND_LEAK;
+        break;
+      }
+    }
+
+    if (!x) {
+      return { success: false, message: 'Sistema singular' };
+    }
+
+    const elecVoltages = new Array(numNodes);
+    for (let i = 0; i < numNodes; i++) {
+      if (i === refElecIdx) elecVoltages[i] = 0;
+      else {
+        const idx = i < refElecIdx ? i : i - 1;
+        elecVoltages[i] = x[idx];
+      }
+    }
+
+    for (const n of c.gridNodes.values()) {
+      const elecIdx = nodeToElecIdx.get(n.id);
+      n.voltage = elecIdx !== undefined ? elecVoltages[elecIdx] : 0;
+    }
+
+    for (const comp of c.components.values()) {
+      if (comp.type === 'resistor') {
+        const dv = comp.nodes[0].voltage - comp.nodes[1].voltage;
+        comp.voltage = dv;
+        comp.current = dv / comp.params.resistance;
+      } else if (comp.type === 'dcSource') {
+        const vs = voltageSources.find(v => v.comp === comp);
+        if (vs) {
+          const k = (numNodes - 1) + vs.idx;
+          comp.current = x[k];
+          comp.voltage = comp.params.voltage;
+        }
+      } else if (comp.type === 'acSource') {
+        const vs = voltageSources.find(v => v.comp === comp);
+        if (vs) {
+          const k = (numNodes - 1) + vs.idx;
+          comp.current = x[k];
+          comp.voltage = comp._instantVoltage || 0;
+        }
+      } else if (comp.type === 'transformer') {
+        comp.voltage = comp._primaryVoltage || 0;
+        const s1 = comp.nodes[2], s2 = comp.nodes[3];
+        const vsSec = comp._secondaryVoltage || 0;
+        let secCurrent = 0;
+        for (const other of c.components.values()) {
+          if (other.type === 'resistor') {
+            const ns = new Set(other.nodes.map(n => n.id));
+            if (ns.has(s1.id) && ns.has(s2.id)) {
+              secCurrent = vsSec / other.params.resistance;
+              break;
+            }
+          }
+        }
+        comp.secondaryCurrent = secCurrent;
+        comp.primaryCurrent = secCurrent * (comp.params.Ns / comp.params.Np);
+        comp.current = comp.primaryCurrent;
+      } else if (comp.type === 'diode') {
+        const dv = comp.nodes[0].voltage - comp.nodes[1].voltage;
+        comp.voltage = dv;
+        comp.current = dv > 0.3 ? (dv - comp.params.forwardVoltage) / 1 : 0;
+      } else if (comp.type === 'capacitor') {
+        const V_new = comp.nodes[0].voltage - comp.nodes[1].voltage;
+        const V_old = this.capacitorVoltages.get(comp.id) || 0;
+        comp.voltage = V_new;
+        // Corrente = C × (V_new - V_old) / dt
+        comp.current = comp.params.capacitance * (V_new - V_old) / dt;
+        // Atualiza tensão anterior para o próximo passo
+        this.capacitorVoltages.set(comp.id, V_new);
+      } else if (comp.type === 'wire') {
+        comp.voltage = 0; comp.current = 0;
+      } else if (comp.type === 'npn') {
+        comp.voltage = 0; comp.current = 0;
+      }
+    }
+
+    return { success: true, numNodes, N, refElecIdx };
+  }
+
+  solveLinear(A, b, n) {
+    const M = Array.from({length: n}, (_, i) => {
+      const row = new Float64Array(n + 1);
+      for (let j = 0; j < n; j++) row[j] = A[i][j];
+      row[n] = b[i];
+      return row;
+    });
+    for (let i = 0; i < n; i++) {
+      let maxRow = i, maxVal = Math.abs(M[i][i]);
+      for (let k = i+1; k < n; k++) {
+        if (Math.abs(M[k][i]) > maxVal) { maxVal = Math.abs(M[k][i]); maxRow = k; }
+      }
+      if (maxVal < 1e-10) return null;
+      if (maxRow !== i) { [M[i], M[maxRow]] = [M[maxRow], M[i]]; }
+      for (let k = i+1; k < n; k++) {
+        const f = M[k][i] / M[i][i];
+        for (let j = i; j <= n; j++) M[k][j] -= f * M[i][j];
+      }
+    }
+    const x = new Float64Array(n);
+    for (let i = n-1; i >= 0; i--) {
+      let s = M[i][n];
+      for (let j = i+1; j < n; j++) s -= M[i][j] * x[j];
+      if (Math.abs(M[i][i]) < 1e-10) return null;
+      x[i] = s / M[i][i];
+    }
+    return x;
+  }
+
+  simulateTimeDomain(duration, steps) {
+    const c = this.circuit;
+    c.history = [];
+    const dt = duration / steps;
+    
+    // Reseta tensões dos capacitores no início da simulação
+    this.capacitorVoltages.clear();
+    
+    const acSources = [];
+    for (const comp of c.components.values()) {
+      if (comp.type === 'acSource') acSources.push(comp);
+    }
+    
+    const collectData = () => {
+      const data = new Map();
+      for (const comp of c.components.values()) {
+        data.set(comp.id, { 
+          v: comp.voltage, 
+          i: comp.current,
+          vs: comp.type === 'transformer' ? comp._secondaryVoltage : undefined,
+          is: comp.type === 'transformer' ? comp.secondaryCurrent : undefined
+        });
+      }
+      return data;
+    };
+    
+    if (acSources.length === 0) {
+      this.handleTransformers();
+      const result = this.solveInstant(dt);
+      c.history.push({ t: 0, data: collectData() });
+      c.history.push({ t: duration, data: collectData() });
+      return result;
+    }
+    for (let s = 0; s <= steps; s++) {
+      const t = s * dt;
+      for (const ac of acSources) {
+        ac._instantVoltage = ac.params.amplitude * Math.sin(2*Math.PI*ac.params.frequency*t + ac.params.phase);
+      }
+      this.handleTransformers();
+      this.solveInstant(dt);
+      c.history.push({ t, data: collectData() });
+    }
+    return { success: true };
+  }
+}
+
+class Renderer {
+  constructor(canvas, circuit) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.circuit = circuit;
+    this.hoverNode = null;
+    this.pendingNode = null;
+  }
+  draw() {
+    const ctx = this.ctx;
+    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    this.drawGrid();
+    for (const c of this.circuit.components.values()) c.draw(ctx);
+    this.drawNodes();
+    if (this.pendingNode) {
+      ctx.fillStyle = '#FF6B9D';
+      ctx.beginPath();
+      ctx.arc(this.pendingNode.x, this.pendingNode.y, 7, 0, Math.PI*2);
+      ctx.fill();
+    }
+  }
+  drawGrid() {
+    const ctx = this.ctx;
+    for (const n of this.circuit.gridNodes.values()) {
+      const isHover = this.hoverNode && this.hoverNode.id === n.id;
+      const isPending = this.pendingNode && this.pendingNode.id === n.id;
+      ctx.fillStyle = isPending ? '#FF6B9D' : (isHover ? '#FFB3BA' : '#C9A7B3');
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, isHover || isPending ? 5 : 3, 0, Math.PI*2);
+      ctx.fill();
+    }
+  }
+  drawNodes() {
+    const ctx = this.ctx;
+    const terminals = this.circuit.getActiveNodes();
+    for (const n of this.circuit.gridNodes.values()) {
+      if (terminals.has(n.id)) {
+        ctx.fillStyle = '#8B7A83';
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, 4, 0, Math.PI*2);
+        ctx.fill();
+      }
+    }
+  }
+}
+
+// ALTERAÇÃO 4: Osciloscópio com suporte a 4 datasets
+class Oscilloscope {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.chart = new Chart(canvas.getContext('2d'), {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [
+          { label: 'Tensão (V)', data: [], borderColor: '#D88A9A', backgroundColor: 'rgba(216,138,154,0.1)', tension: 0.3, pointRadius: 0, borderWidth: 2, yAxisID: 'y' },
+          { label: 'Corrente (mA)', data: [], borderColor: '#7BA7C9', backgroundColor: 'rgba(123,167,201,0.1)', tension: 0.3, pointRadius: 0, borderWidth: 2, yAxisID: 'y1' }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        plugins: {
+          legend: { labels: { color: '#4A3F44', font: { size: 11 } } },
+          title: { display: true, text: 'Osciloscópio — Componente Selecionado', color: '#4A3F44', font: { size: 13 } }
+        },
+        scales: {
+          x: { title: { display: true, text: 'Tempo (s)', color: '#7A6B72' }, ticks: { color: '#7A6B72' }, grid: { color: '#F0D9E0' } },
+          y: { title: { display: true, text: 'Tensão (V)', color: '#7A6B72' }, ticks: { color: '#7A6B72' }, grid: { color: '#F0D9E0' } },
+          y1: { position: 'right', title: { display: true, text: 'Corrente (mA)', color: '#7A6B72' }, ticks: { color: '#7A6B72' }, grid: { display: false } }
+        }
+      }
+    });
+  }
+  
+  update(history, componentId, component) {
+    if (!history || history.length === 0 || !componentId) {
+      this.chart.data.labels = [];
+      this.chart.data.datasets[0].data = [];
+      this.chart.data.datasets[1].data = [];
+      if (this.chart.data.datasets.length > 2) {
+        this.chart.data.datasets[2].data = [];
+        this.chart.data.datasets[3].data = [];
+      }
+      this.chart.update();
+      return;
+    }
+    
+    const labels = history.map(h => h.t.toFixed(4));
+    const voltages = history.map(h => { const d = h.data.get(componentId); return d ? d.v : 0; });
+    const currents = history.map(h => { const d = h.data.get(componentId); return d ? d.i * 1000 : 0; });
+    
+    this.chart.data.labels = labels;
+    this.chart.data.datasets[0].data = voltages;
+    this.chart.data.datasets[1].data = currents;
+    
+    if (component && component.type === 'transformer') {
+      while (this.chart.data.datasets.length < 4) {
+        this.chart.data.datasets.push({
+          label: '',
+          data: [],
+          borderColor: '',
+          backgroundColor: '',
+          tension: 0.3,
+          pointRadius: 0,
+          borderWidth: 2,
+          yAxisID: 'y'
+        });
+      }
+      
+      const vsData = history.map(h => { 
+        const d = h.data.get(componentId); 
+        return (d && d.vs !== undefined) ? d.vs : 0; 
+      });
+      const isData = history.map(h => { 
+        const d = h.data.get(componentId); 
+        return (d && d.is !== undefined) ? d.is * 1000 : 0; 
+      });
+      
+      this.chart.data.datasets[2].label = 'Vs (V)';
+      this.chart.data.datasets[2].data = vsData;
+      this.chart.data.datasets[2].borderColor = '#9A7BB5';
+      this.chart.data.datasets[2].backgroundColor = 'rgba(154,123,181,0.1)';
+      this.chart.data.datasets[2].tension = 0.3;
+      this.chart.data.datasets[2].pointRadius = 0;
+      this.chart.data.datasets[2].borderWidth = 2;
+      this.chart.data.datasets[2].yAxisID = 'y';
+      
+      this.chart.data.datasets[3].label = 'Is (mA)';
+      this.chart.data.datasets[3].data = isData;
+      this.chart.data.datasets[3].borderColor = '#E8A87C';
+      this.chart.data.datasets[3].backgroundColor = 'rgba(232,168,124,0.1)';
+      this.chart.data.datasets[3].tension = 0.3;
+      this.chart.data.datasets[3].pointRadius = 0;
+      this.chart.data.datasets[3].borderWidth = 2;
+      this.chart.data.datasets[3].yAxisID = 'y1';
+    } else {
+      if (this.chart.data.datasets.length > 2) {
+        this.chart.data.datasets[2].data = [];
+        this.chart.data.datasets[3].data = [];
+      }
+    }
+    
+    this.chart.update();
+  }
+  
+  clear() {
+    this.chart.data.labels = [];
+    this.chart.data.datasets[0].data = [];
+    this.chart.data.datasets[1].data = [];
+    if (this.chart.data.datasets.length > 2) {
+      this.chart.data.datasets[2].data = [];
+      this.chart.data.datasets[3].data = [];
+    }
+    this.chart.update();
+  }
+}
+
+class UI {
+  constructor() {
+    this.circuit = new Circuit();
+    this.canvas = document.getElementById('circuit');
+    this.canvas.width = GRID.width;
+    this.canvas.height = GRID.height;
+    this.renderer = new Renderer(this.canvas, this.circuit);
+    this.solver = new Solver(this.circuit);
+    this.oscilloscope = new Oscilloscope(document.getElementById('oscilloscope'));
+    this.currentTool = 'select';
+    this.simulating = false;
+    this.multiStepMode = null;
+    this.bindEvents();
+    this.updateInspector();
+    this.renderer.draw();
+  }
+
+  log(msg) { 
+    const el = document.getElementById('debugLog');
+    el.textContent = msg;
+    el.scrollTop = el.scrollHeight;
+  }
+
+  bindEvents() {
+    document.querySelectorAll('.tool-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.currentTool = btn.dataset.tool;
+        this.multiStepMode = null;
+        this.renderer.pendingNode = null;
+        this.updateHint();
+        this.renderer.draw();
+      });
+    });
+    document.querySelector('[data-tool="select"]').classList.add('active');
+    this.canvas.addEventListener('click', (e) => this.onCanvasClick(e));
+    this.canvas.addEventListener('mousemove', (e) => this.onCanvasMove(e));
+    document.getElementById('btnSimulate').addEventListener('click', () => this.toggleSimulation());
+    document.getElementById('btnClear').addEventListener('click', () => this.clearCircuit());
+    document.getElementById('btnExample').addEventListener('click', () => this.loadExample());
+  }
+
+  getCanvasCoords(e) {
+    const rect = this.canvas.getBoundingClientRect();
+    const scaleX = this.canvas.width / rect.width;
+    const scaleY = this.canvas.height / rect.height;
+    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+  }
+
+  onCanvasMove(e) {
+    const { x, y } = this.getCanvasCoords(e);
+    this.renderer.hoverNode = this.circuit.findNodeAt(x, y, 10);
+    this.renderer.draw();
+  }
+
+  onCanvasClick(e) {
+    const { x, y } = this.getCanvasCoords(e);
+    if (this.multiStepMode) { this.handleMultiStepClick(x, y); return; }
+    if (this.currentTool === 'select') {
+      const comp = this.circuit.findComponentAt(x, y);
+      this.circuit.selectComponent(comp ? comp.id : null);
+      this.updateInspector();
+      this.renderer.draw();
+      this.refreshScopeIfSimulated();
+      return;
+    }
+    const node = this.circuit.findNodeAt(x, y, 10);
+    if (!node) return;
+    if (!this.renderer.pendingNode) {
+      this.renderer.pendingNode = node;
+      this.updateHint();
+      this.renderer.draw();
+      return;
+    }
+    const n1 = this.renderer.pendingNode;
+    const n2 = node;
+    if (n1.id === n2.id) {
+      this.renderer.pendingNode = null;
+      this.updateHint();
+      this.renderer.draw();
+      return;
+    }
+    const existing = this.findComponentBetween(n1, n2);
+    if (existing) {
+      this.circuit.selectComponent(existing.id);
+      this.renderer.pendingNode = null;
+      this.updateInspector();
+      this.renderer.draw();
+      return;
+    }
+    let comp = null;
+    switch (this.currentTool) {
+      case 'wire': comp = new Wire(n1, n2); break;
+      case 'resistor': comp = new Resistor(n1, n2); break;
+      case 'capacitor': comp = new Capacitor(n1, n2); break;
+      case 'dcSource': comp = new DCSource(n1, n2); break;
+      case 'acSource': comp = new ACSource(n1, n2); break;
+      case 'diode': comp = new Diode(n1, n2); break;
+      case 'transformer':
+        this.renderer.pendingNode = null;
+        this.multiStepMode = { type: 'transformer', nodes: [n1, n2], step: 2 };
+        this.updateHint();
+        this.renderer.draw();
+        return;
+      case 'npn':
+        this.renderer.pendingNode = null;
+        this.multiStepMode = { type: 'npn', nodes: [n1, n2], step: 2 };
+        this.updateHint();
+        this.renderer.draw();
+        return;
+    }
+    if (comp) {
+      this.circuit.addComponent(comp);
+      this.circuit.selectComponent(comp.id);
+    }
+    this.renderer.pendingNode = null;
+    this.updateInspector();
+    this.renderer.draw();
+  }
+
+  handleMultiStepClick(x, y) {
+    const node = this.circuit.findNodeAt(x, y, 10);
+    if (!node) return;
+    if (this.multiStepMode.nodes.some(n => n.id === node.id)) return;
+    this.multiStepMode.nodes.push(node);
+    this.multiStepMode.step++;
+    if (this.multiStepMode.type === 'transformer' && this.multiStepMode.step === 4) {
+      const [n1, n2, n3, n4] = this.multiStepMode.nodes;
+      const comp = new Transformer(n1, n2, n3, n4);
+      this.circuit.addComponent(comp);
+      this.circuit.selectComponent(comp.id);
+      this.multiStepMode = null;
+      this.updateInspector();
+      this.renderer.draw();
+      this.updateHint();
+    } else if (this.multiStepMode.type === 'npn' && this.multiStepMode.step === 3) {
+      const [nBase, nCollector, nEmitter] = this.multiStepMode.nodes;
+      const comp = new TransistorNPN(nBase, nCollector, nEmitter);
+      this.circuit.addComponent(comp);
+      this.circuit.selectComponent(comp.id);
+      this.multiStepMode = null;
+      this.updateInspector();
+      this.renderer.draw();
+      this.updateHint();
+    } else {
+      this.updateHint();
+      this.renderer.draw();
+    }
+  }
+
+  findComponentBetween(n1, n2) {
+    for (const c of this.circuit.components.values()) {
+      if (c.nodes.length === 2) {
+        const ids = new Set(c.nodes.map(n => n.id));
+        if (ids.has(n1.id) && ids.has(n2.id)) return c;
+      }
+    }
+    return null;
+  }
+
+  updateHint() {
+    const hint = document.getElementById('hint');
+    if (this.multiStepMode) {
+      if (this.multiStepMode.type === 'transformer') {
+        hint.textContent = this.multiStepMode.step === 2 ? 'Transformador: clique no 3º nó (secundário)' : 'Transformador: clique no 4º nó (secundário)';
+      } else if (this.multiStepMode.type === 'npn') {
+        hint.textContent = 'NPN: clique no Emissor';
+      }
+      return;
+    }
+    if (this.currentTool === 'select') {
+      hint.textContent = 'Clique em um componente para selecioná-lo';
+    } else {
+      hint.textContent = !this.renderer.pendingNode ? `Ferramenta: ${this.currentTool} — clique no 1º nó` : `Ferramenta: ${this.currentTool} — clique no 2º nó`;
+    }
+  }
+
+  refreshScopeIfSimulated() {
+    if (this.circuit.history && this.circuit.history.length > 0) {
+      this.updateOscilloscopeFromHistory();
+      this.updateMetrics();
+    }
+  }
+
+  updateInspector() {
+    const content = document.getElementById('inspectorContent');
+    const id = this.circuit.selectedId;
+    if (!id) { content.innerHTML = '<div class="inspector-empty">Nenhum componente selecionado</div>'; return; }
+    const comp = this.circuit.components.get(id);
+    if (!comp) { content.innerHTML = '<div class="inspector-empty">Nenhum componente selecionado</div>'; return; }
+    let html = `<div class="component-info"><div class="type">${this.typeName(comp.type)}</div><div class="id">ID: ${comp.id}</div></div>`;
+    html += this.buildParamsHTML(comp);
+    html += `<button class="btn-delete" id="btnDelete">🗑 Excluir</button>`;
+    content.innerHTML = html;
+    content.querySelectorAll('input[data-param]').forEach(inp => {
+      const updateHandler = () => {
+        const key = inp.dataset.param;
+        let val = parseFloat(inp.value);
+        if (isNaN(val)) return;
+        if (inp.dataset.unit === 'k') val *= 1000;
+        else if (inp.dataset.unit === 'm') val *= 1e-3;
+        else if (inp.dataset.unit === 'u') val *= 1e-6;
+        else if (inp.dataset.unit === 'n') val *= 1e-9;
+        comp.params[key] = val;
+        this.renderer.draw();
+        if (this.simulating && this.circuit.history.length > 0) {
+          this.rerunSimulation();
+        }
+      };
+      inp.addEventListener('change', updateHandler);
+      inp.addEventListener('input', updateHandler);
+    });
+    document.getElementById('btnDelete').addEventListener('click', () => {
+      this.circuit.removeComponent(id);
+      this.oscilloscope.clear();
+      this.updateInspector();
+      this.renderer.draw();
+      document.getElementById('mVmax').textContent = '—';
+      document.getElementById('mCurrent').textContent = '—';
+      document.getElementById('mNominal').textContent = '—';
+    });
+  }
+
+  typeName(t) {
+    return { wire: '━ Fio', resistor: ' Resistor', capacitor: '⊣ Capacitor', dcSource: '⎓ Fonte DC', acSource: '∿ Fonte AC', transformer: '⚡ Transformador', diode: '▷| Diodo', npn: '⊳ NPN' }[t] || t;
+  }
+
+  buildParamsHTML(comp) {
+    let html = '<div class="prop-group">';
+    switch (comp.type) {
+      case 'resistor': html += this.paramRow('Resistência', 'resistance', comp.params.resistance, 'Ω', ''); break;
+      case 'capacitor': html += this.paramRow('Capacitância', 'capacitance', comp.params.capacitance*1e6, 'µF', 'u'); break;
+      case 'dcSource': html += this.paramRow('Tensão', 'voltage', comp.params.voltage, 'V', ''); break;
+      case 'acSource':
+        html += this.paramRow('Amplitude', 'amplitude', comp.params.amplitude, 'V', '');
+        html += this.paramRow('Frequência', 'frequency', comp.params.frequency, 'Hz', '');
+        html += this.paramRow('Fase', 'phase', comp.params.phase, 'rad', '');
+        break;
+      case 'transformer':
+        html += this.paramRow('Espiras Primário (Np)', 'Np', comp.params.Np, '', '', true);
+        html += this.paramRow('Espiras Secundário (Ns)', 'Ns', comp.params.Ns, '', '', true);
+        break;
+      case 'diode': html += this.paramRow('Tensão Direta (Vf)', 'forwardVoltage', comp.params.forwardVoltage, 'V', ''); break;
+      case 'npn': html += this.paramRow('Ganho (β)', 'beta', comp.params.beta, '', '', true); break;
+      case 'wire': html += '<div style="font-size:12px;color:#7A6B72;">Fio ideal</div>'; break;
+    }
+    html += '</div>';
+    return html;
+  }
+
+  paramRow(label, key, value, unit, unitMult, isInt = false) {
+    const step = isInt ? 1 : 'any';
+    return `<div class="prop-row"><label>${label} ${unit ? '('+unit+')' : ''}</label><input type="number" data-param="${key}" data-unit="${unitMult}" value="${value}" step="${step}"></div>`;
+  }
+
+  toggleSimulation() {
+    const btn = document.getElementById('btnSimulate');
+    const status = document.getElementById('mStatus');
+    if (this.simulating) {
+      this.simulating = false;
+      btn.textContent = '▶ Simular';
+      btn.classList.remove('running');
+      status.innerHTML = '<span class="status-badge status-idle">Parado</span>';
+    } else {
+      this.startSimulation();
+      btn.textContent = '⏸ Parar';
+      btn.classList.add('running');
+      status.innerHTML = '<span class="status-badge status-running">Executando</span>';
+    }
+  }
+
+  startSimulation() {
+    this.simulating = true;
+    this.rerunSimulation();
+  }
+
+  rerunSimulation() {
+    let maxFreq = 60;
+    let hasAC = false;
+    for (const c of this.circuit.components.values()) {
+      if (c.type === 'acSource') { maxFreq = Math.max(maxFreq, c.params.frequency); hasAC = true; }
+    }
+    const duration = hasAC ? (1 / maxFreq) * 3 : 1;
+    const steps = 200;
+    
+    this.solver.handleTransformers();
+    const diagLog = this.solver.log.join('\n');
+    
+    const result = this.solver.simulateTimeDomain(duration, steps);
+    
+    if (result && !result.success) {
+      const errorMsg = `❌ ${result.message}\n\n${diagLog}`;
+      this.log(errorMsg);
+      document.getElementById('mStatus').innerHTML = '<span class="status-badge status-error">Erro</span>';
+    } else {
+      const info = result ? `nós=${result.numNodes} N=${result.N}` : '';
+      const okMsg = `✅ OK. ${this.circuit.history.length} pontos. ${info}\n\n${diagLog}`;
+      this.log(okMsg);
+    }
+    this.updateOscilloscopeFromHistory();
+    this.updateMetrics();
+    this.renderer.draw();
+  }
+
+  // ALTERAÇÃO 5: passa o componente para o osciloscópio
+  updateOscilloscopeFromHistory() {
+    const id = this.circuit.selectedId;
+    const comp = this.circuit.components.get(id);
+    this.oscilloscope.update(this.circuit.history, id, comp);
+  }
+
+  updateMetrics() {
+    const id = this.circuit.selectedId;
+    const mVmax = document.getElementById('mVmax');
+    const mCurrent = document.getElementById('mCurrent');
+    const mNominal = document.getElementById('mNominal');
+    if (!id || !this.circuit.history || this.circuit.history.length === 0) {
+      mVmax.textContent = '—'; mCurrent.textContent = '—'; mNominal.textContent = '—';
+      return;
+    }
+    let vmax = 0, imax = 0;
+    for (const h of this.circuit.history) {
+      const d = h.data.get(id);
+      if (d) { vmax = Math.max(vmax, Math.abs(d.v)); imax = Math.max(imax, Math.abs(d.i)); }
+    }
+    mVmax.textContent = Utils.fmt(vmax, 'V', 2);
+    mCurrent.textContent = Utils.fmt(imax, 'A', 2);
+    const comp = this.circuit.components.get(id);
+    if (comp) {
+      if (comp.type === 'resistor') mNominal.textContent = Utils.fmt(comp.params.resistance, 'Ω', 1);
+      else if (comp.type === 'capacitor') mNominal.textContent = Utils.fmt(comp.params.capacitance*1e6, 'µF', 2);
+      else if (comp.type === 'dcSource') mNominal.textContent = comp.params.voltage.toFixed(1) + 'V';
+      else if (comp.type === 'acSource') mNominal.textContent = `${comp.params.amplitude.toFixed(1)}V ${comp.params.frequency}Hz`;
+      else if (comp.type === 'transformer') mNominal.textContent = `${comp.params.Np}:${comp.params.Ns}`;
+      else if (comp.type === 'diode') mNominal.textContent = `Vf=${comp.params.forwardVoltage}V`;
+      else if (comp.type === 'npn') mNominal.textContent = `β=${comp.params.beta}`;
+      else mNominal.textContent = '—';
+    }
+  }
+
+  loadExample() {
+    this.clearCircuit();
+    const n1 = this.circuit.getNode(5, 10);
+    const n2 = this.circuit.getNode(5, 12);
+    const n3 = this.circuit.getNode(10, 12);
+    const n4 = this.circuit.getNode(10, 10);
+    const ac = new ACSource(n1, n2);
+    const r = new Resistor(n3, n4);
+    const w1 = new Wire(n2, n3);
+    const w2 = new Wire(n4, n1);
+    this.circuit.addComponent(ac);
+    this.circuit.addComponent(r);
+    this.circuit.addComponent(w1);
+    this.circuit.addComponent(w2);
+    this.circuit.selectComponent(r.id);
+    this.updateInspector();
+    this.renderer.draw();
+    this.log('Exemplo: AC 5V 60Hz + R 1kΩ. Clique Simular.');
+  }
+
+  clearCircuit() {
+    this.circuit = new Circuit();
+    this.renderer.circuit = this.circuit;
+    this.solver.circuit = this.circuit;
+    this.renderer.pendingNode = null;
+    this.multiStepMode = null;
+    this.circuit.selectedId = null;
+    this.simulating = false;
+    this.updateInspector();
+    this.oscilloscope.clear();
+    document.getElementById('mVmax').textContent = '—';
+    document.getElementById('mCurrent').textContent = '—';
+    document.getElementById('mNominal').textContent = '—';
+    document.getElementById('mStatus').innerHTML = '<span class="status-badge status-idle">Ocioso</span>';
+    document.getElementById('btnSimulate').textContent = '▶ Simular';
+    document.getElementById('btnSimulate').classList.remove('running');
+    this.log('Circuito limpo');
+    this.renderer.draw();
+  }
+}
+
+window.addEventListener('DOMContentLoaded', () => { window.app = new UI(); });
+</script>
+</body>
+</html>
