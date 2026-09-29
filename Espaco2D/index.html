@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simulador de Planta Baixa - V1</title>
+<link rel="stylesheet" href="css/planta.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">PLANTA BAIXA <span>V1</span></div>
+  <div class="toolbar">
+    <button data-action="new">Novo</button>
+    <button data-action="open">Abrir</button>
+    <button data-action="save">Salvar</button>
+    <button data-action="export">Exportar PNG</button>
+    <button data-action="undo">↶ Desfazer</button>
+    <button data-action="redo">↷ Refazer</button>
+    <button data-action="zoomOut">−</button>
+    <span id="zoomLabel">100%</span>
+    <button data-action="zoomIn">+</button>
+    <button data-action="fit">Ajustar</button>
+  </div>
+</header>
+
+<main class="workspace">
+  <aside class="sidebar">
+    <h2>Componentes</h2>
+    <div id="componentMenu"></div>
+    <div class="help">
+      <strong>Como usar</strong>
+      <p>Arraste um componente para a planta ou clique para adicioná-lo.</p>
+      <p>Use <b>Delete</b> para excluir e <b>Ctrl+Z / Ctrl+Y</b> para desfazer/refazer.</p>
+      <p>O snap usa metros e não depende do zoom.</p><p>Área de desenho: 2× a área visível. Use as barras de rolagem para navegar.</p><p>Zoom: 25% a 400%.</p>
+    </div>
+  </aside>
+
+  <section class="drawing-area" id="drawingArea">
+    <canvas id="plantCanvas"></canvas>
+    <div class="statusbar">
+      <span id="cursorPosition">X: 0,00 m | Y: 0,00 m</span>
+      <span id="selectionStatus">Nenhum componente selecionado</span>
+      <span id="gridStatus">Grade: 0,20 m | Snap: grade + bordas | Setas: 1 cm</span>
+    </div>
+  </section>
+
+  <aside class="properties">
+    <h2>Propriedades</h2>
+    <div id="propertiesPanel">
+      <div class="empty">Selecione um componente para editar suas características.</div>
+    </div>
+  </aside>
+</main>
+
+<input type="file" id="fileInput" accept=".json,application/json" hidden>
+<script src="js/geometria.js"></script>
+<script src="js/componentes.js"></script>
+<script src="js/grade.js"></script>
+<script src="js/ajuste.js"></script>
+<script src="js/selecao.js"></script>
+<script src="js/propriedades.js"></script>
+<script src="js/arquivo.js"></script>
+<script src="js/canvas.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
