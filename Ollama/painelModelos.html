@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ollama — painel de gerenciamento de modelos</title>
+<style>
+:root{
+    --azul:#3b82f6;
+    --azul2:#2563eb;
+    --roxo:#7c3aed;
+    --verde:#0e9488;
+    --ambar:#e08a1e;
+    --rosa:#e0247a;
+    --card:#ffffff;
+    --texto:#1e293b;
+    --borda:#dbe4f0;
+    --cinza:#64748b;
+    --vermelho:#dc2626;
+}
+
+*{ box-sizing:border-box; }
+
+body{
+    margin:0;
+    min-height:100vh;
+    background:linear-gradient(135deg,#dbeafe,#eef2ff,#ede9fe);
+    font-family:"Trebuchet MS",Arial,sans-serif;
+    color:var(--texto);
+}
+
+.pagina{ max-width:1080px; margin:0 auto; padding:28px 24px 60px; }
+
+header.topo{
+    background:linear-gradient(135deg,#4f46e5,#7c3aed,#db2777);
+    color:white;
+    border-radius:16px;
+    padding:22px 26px;
+    margin-bottom:22px;
+    box-shadow:0 14px 30px rgba(124,58,237,.22);
+}
+
+header.topo h1{ margin:0; font-size:22px; display:flex; align-items:center; gap:10px; }
+header.topo p{ margin:6px 0 0 34px; font-size:13px; opacity:.88; }
+
+.conteudo{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:20px;
+    align-items:start;
+}
+
+@media (max-width:820px){ .conteudo{ grid-template-columns:1fr; } }
+
+.painel{
+    background:var(--card);
+    border-radius:16px;
+    box-shadow:0 10px 26px rgba(30,41,59,.08);
+    padding:22px 24px 24px;
+    border-top:5px solid var(--tema, var(--azul));
+}
+
+.painel-baixar{ --tema:var(--ambar); }
+.painel-instalados{ --tema:var(--verde); }
+.painel-detalhes{ --tema:var(--roxo); grid-column:1 / -1; }
+
+.painel h2{ margin:0 0 14px; font-size:17px; }
+
+label{ display:block; margin-bottom:7px; font-weight:bold; font-size:13.5px; }
+
+.linha-baixar{ display:flex; gap:8px; margin-bottom:8px; }
+
+input[type="text"]{
+    flex:1;
+    padding:11px 12px;
+    font-family:inherit;
+    font-size:14.5px;
+    border:1px solid var(--borda);
+    border-radius:10px;
+    outline:none;
+    transition:.2s;
+}
+input[type="text"]:focus{ border-color:var(--ambar); box-shadow:0 0 0 4px rgba(224,138,30,.15); }
+input[type="text"]:disabled{ background:#f8fafc; color:var(--cinza); }
+
+#botaoBaixar{
+    padding:11px 18px;
+    border:none;
+    border-radius:10px;
+    background:linear-gradient(135deg,var(--ambar),var(--rosa));
+    color:white;
+    font-family:inherit;
+    font-size:14px;
+    font-weight:bold;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    transition:.2s;
+    white-space:nowrap;
+}
+#botaoBaixar:hover:not(:disabled){ transform:translateY(-1px); box-shadow:0 8px 16px rgba(224,138,30,.3); }
+#botaoBaixar:disabled{ opacity:.6; cursor:default; transform:none; }
+
+.spinner{
+    width:14px; height:14px;
+    border-radius:50%;
+    border:2.2px solid rgba(255,255,255,.4);
+    border-top-color:#fff;
+    display:none;
+    animation:girar .7s linear infinite;
+}
+#botaoBaixar.carregando .spinner{ display:inline-block; }
+@keyframes girar{ to{ transform:rotate(360deg); } }
+
+.dica{ font-size:11.5px; color:var(--cinza); margin:0 0 14px; }
+
+#statusDownload{ font-size:12.5px; color:var(--cinza); margin-bottom:8px; min-height:16px; }
+
+.barra-fundo{ background:#e2e8f0; border-radius:8px; height:10px; overflow:hidden; margin-bottom:4px; }
+.barra-progresso{
+    height:100%; width:0%;
+    background:linear-gradient(135deg,var(--ambar),var(--rosa));
+    border-radius:8px;
+    transition:width .2s ease;
+}
+#percentualDownload{ font-size:12px; color:var(--cinza); font-weight:bold; }
+
+/* ---- lista de modelos instalados ---- */
+#listaModelos{
+    list-style:none;
+    margin:0;
+    padding:0;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    max-height:320px;
+    overflow-y:auto;
+}
+
+#listaModelos li{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    background:#f8fafc;
+    border:1px solid var(--borda);
+    border-left:5px solid var(--verde);
+    border-radius:10px;
+    padding:10px 12px;
+}
+
+#listaModelos li.selecionado{ background:#f3eefc; border-left-color:var(--roxo); }
+
+.item-nome{ font-weight:bold; font-size:14px; word-break:break-all; }
+
+.item-acoes{ display:flex; gap:6px; flex-shrink:0; }
+
+.item-acoes button{
+    font-family:inherit;
+    font-size:12px;
+    font-weight:bold;
+    border-radius:7px;
+    padding:7px 10px;
+    cursor:pointer;
+    border:none;
+    white-space:nowrap;
+}
+
+.botao-detalhes{ background:#ede9fe; color:#6d28d9; }
+.botao-detalhes:hover{ background:#ddd6fe; }
+
+.botao-apagar{ background:#fef2f2; color:var(--vermelho); }
+.botao-apagar:hover{ background:#fee2e2; }
+
+.aviso-lista{
+    padding:18px;
+    text-align:center;
+    color:var(--cinza);
+    font-size:13.5px;
+    background:#f8fafc;
+    border:1px dashed var(--borda);
+    border-radius:10px;
+}
+
+/* ---- painel de detalhes ---- */
+.resumo-detalhes{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+    gap:10px;
+    margin-bottom:14px;
+}
+
+.campo-detalhe{
+    background:#f8fafc;
+    border:1px solid var(--borda);
+    border-radius:10px;
+    padding:10px 12px;
+}
+
+.campo-detalhe .rotulo{
+    font-size:10.5px;
+    text-transform:uppercase;
+    letter-spacing:.4px;
+    color:var(--cinza);
+    margin-bottom:3px;
+}
+
+.campo-detalhe .valor{ font-size:14px; font-weight:bold; }
+
+#jsonDetalhes{
+    background:#12141c;
+    color:#e7e9f0;
+    border-radius:10px;
+    padding:14px 16px;
+    font-family:Consolas,"Courier New",monospace;
+    font-size:12.5px;
+    line-height:1.55;
+    white-space:pre-wrap;
+    word-break:break-word;
+    max-height:260px;
+    overflow-y:auto;
+    margin:0;
+}
+
+.placeholder-detalhes{
+    text-align:center;
+    color:var(--cinza);
+    font-size:13.5px;
+    padding:30px 10px;
+}
+
+.mensagem{ margin-top:12px; padding:11px 14px; border-radius:10px; font-size:13px; line-height:1.5; }
+.mensagem[hidden]{ display:none; }
+.mensagem.sucesso{ background:#f0fdf4; border:1px solid #bbf7d0; color:#15803d; }
+.mensagem.erro{ background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; }
+.mensagem.info{ background:#f1f5f9; border:1px solid var(--borda); color:var(--cinza); }
+</style>
+</head>
+<body>
+
+<div class="pagina">
+
+    <header class="topo">
+        <h1>📦 Painel de gerenciamento de modelos</h1>
+        <p>Aula 18 · ver propriedades, apagar e baixar — tudo numa única tela</p>
+    </header>
+
+    <div class="conteudo">
+
+        <!-- ================= BAIXAR ================= -->
+        <section class="painel painel-baixar">
+            <h2>Baixar um modelo</h2>
+            <label for="nomeModelo">Nome do modelo</label>
+            <div class="linha-baixar">
+                <input type="text" id="nomeModelo" placeholder="ex: phi3" autocomplete="off">
+                <button id="botaoBaixar" type="button">
+                    <span class="spinner"></span>
+                    <span class="rotulo-botao">Baixar</span>
+                </button>
+            </div>
+            <p class="dica">O nome digitado vai direto no corpo do /api/pull — o mesmo endpoint usado por trás do "ollama pull" no terminal.</p>
+
+            <div id="statusDownload"></div>
+            <div class="barra-fundo"><div class="barra-progresso" id="barraDownload"></div></div>
+            <div id="percentualDownload">0%</div>
+
+            <div id="mensagemDownload" class="mensagem" hidden></div>
+        </section>
+		<!-- ================= LISTA ================= -->
+        <section class="painel painel-instalados">
+            <h2>Modelos instalados</h2>
+            <ul id="listaModelos">
+                <li class="aviso-lista" style="display:block;">Carregando modelos...</li>
+            </ul>
+        </section>
+
+        <!-- ================= DETALHES (/api/show) ================= -->
+        <section class="painel painel-detalhes">
+            <h2>Propriedades do modelo</h2>
+            <div id="painelDetalhesConteudo">
+                <p class="placeholder-detalhes">Clique em "Ver detalhes" em um modelo da lista para consultar o /api/show.</p>
+            </div>
+        </section>
+
+    </div>
+</div>
+
+<script>
+  const nomeModeloEl   = document.querySelector('#nomeModelo');
+  const botaoBaixar    = document.querySelector('#botaoBaixar');
+  const rotuloBotao    = botaoBaixar.querySelector('.rotulo-botao');
+  const statusDownload = document.querySelector('#statusDownload');
+  const barraDownload  = document.querySelector('#barraDownload');
+  const percentualDownload = document.querySelector('#percentualDownload');
+  const mensagemDownload = document.querySelector('#mensagemDownload');
+
+  const listaModelosEl = document.querySelector('#listaModelos');
+  const painelDetalhesConteudo = document.querySelector('#painelDetalhesConteudo');
+
+  const textoOriginalBotao = rotuloBotao.textContent;
+
+  function formatarBytes(bytes) {
+    if (!bytes || bytes <= 0) return '—';
+    const gb = bytes / (1024 ** 3);
+    return gb >= 1 ? gb.toFixed(1) + ' GB' : (bytes / (1024 ** 2)).toFixed(0) + ' MB';
+  }
+
+  function mostrarMensagem(el, tipo, texto) {
+    el.className = 'mensagem ' + tipo;
+    el.textContent = texto;
+    el.hidden = false;
+  }
+
+  /* =====================================================================
+     1) A ESTRUTURA DA INTERFACE: listando os modelos instalados
+  ===================================================================== */
+  async function carregarListaModelos() {
+    try {
+      const r = await fetch('http://localhost:11434/api/tags');
+      if (!r.ok) throw new Error('Erro ao consultar /api/tags: ' + r.status);
+      const dados = await r.json();
+
+      if (!dados.models || dados.models.length === 0) {
+        listaModelosEl.innerHTML = '<li class="aviso-lista" style="display:block;">Nenhum modelo instalado ainda.</li>';
+        return;
+      }
+
+      listaModelosEl.innerHTML = '';
+
+      dados.models.forEach(modelo => {
+        const item = document.createElement('li');
+        item.dataset.nome = modelo.name;
+
+        item.innerHTML = `
+          <span class="item-nome">${modelo.name}</span>
+          <span class="item-acoes">
+            <button class="botao-detalhes" type="button">Ver detalhes</button>
+            <button class="botao-apagar" type="button">Apagar</button>
+          </span>
+        `;
+
+        item.querySelector('.botao-detalhes').addEventListener('click', () => {
+          mostrarDetalhes(modelo.name, item);
+        });
+        item.querySelector('.botao-apagar').addEventListener('click', () => {
+          apagarModelo(modelo.name, item);
+        });
+
+        listaModelosEl.appendChild(item);
+      });
+
+    } catch (erro) {
+      listaModelosEl.innerHTML = '<li class="aviso-lista" style="display:block;">Não foi possível falar com o Ollama em localhost:11434.</li>';
+      console.error(erro);
+    }
+  }
+
+  /* =====================================================================
+     2) EXIBINDO PROPRIEDADES: POST /api/show
+  ===================================================================== */
+  async function mostrarDetalhes(nome, itemLi) {
+    document.querySelectorAll('#listaModelos li').forEach(li => li.classList.remove('selecionado'));
+    if (itemLi) itemLi.classList.add('selecionado');
+
+    painelDetalhesConteudo.innerHTML = '<p class="placeholder-detalhes">Consultando /api/show...</p>';
+
+    try {
+      const r = await fetch('http://localhost:11434/api/show', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: nome })
+      });
+
+      if (!r.ok) throw new Error('Erro ao consultar /api/show: ' + r.status);
+
+      const dados = await r.json();
+      renderizarDetalhes(nome, dados);
+
+    } catch (erro) {
+      painelDetalhesConteudo.innerHTML = '<p class="placeholder-detalhes">Não foi possível obter os detalhes de "' + nome + '".</p>';
+      console.error(erro);
+    }
+  }
+
+  // 3) extrai só os campos que interessam pro resumo visual, e ainda
+  //    mostra o objeto "details" inteiro, em JSON, logo abaixo
+  function renderizarDetalhes(nome, dados) {
+    const d = dados.details || {};
+
+    painelDetalhesConteudo.innerHTML = `
+      <div class="resumo-detalhes">
+        <div class="campo-detalhe"><div class="rotulo">Modelo</div><div class="valor">${nome}</div></div>
+        <div class="campo-detalhe"><div class="rotulo">Família</div><div class="valor">${d.family || '—'}</div></div>
+        <div class="campo-detalhe"><div class="rotulo">Parâmetros</div><div class="valor">${d.parameter_size || '—'}</div></div>
+        <div class="campo-detalhe"><div class="rotulo">Quantização</div><div class="valor">${d.quantization_level || '—'}</div></div>
+      </div>
+      <pre id="jsonDetalhes"></pre>
+    `;
+
+    // painel.textContent = JSON.stringify(dados.details, null, 2) — igual à aula
+    document.querySelector('#jsonDetalhes').textContent = JSON.stringify(d, null, 2);
+  }
+
+  /* =====================================================================
+     4) APAGANDO UM MODELO: DELETE /api/delete, com confirmação
+  ===================================================================== */
+  async function apagarModelo(nome, itemLi) {
+    if (!confirm(`Apagar ${nome}?`)) return;
+
+    try {
+      const r = await fetch('http://localhost:11434/api/delete', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: nome })
+      });
+
+      if (!r.ok) throw new Error('Erro ao apagar: ' + r.status);
+
+      // se o modelo apagado era o que estava nos detalhes, limpa o painel
+      if (itemLi && itemLi.classList.contains('selecionado')) {
+        painelDetalhesConteudo.innerHTML = '<p class="placeholder-detalhes">Clique em "Ver detalhes" em um modelo da lista para consultar o /api/show.</p>';
+      }
+
+      // atualiza a lista depois de remover
+      carregarListaModelos();
+
+    } catch (erro) {
+      alert('Não foi possível apagar "' + nome + '": ' + erro.message);
+      console.error(erro);
+    }
+  }
+
+  /* =====================================================================
+     5) BAIXANDO UM MODELO PELO INPUT: POST /api/pull, com streaming
+  ===================================================================== */
+  function atualizarBarraDownload(pct) {
+    const limitado = Math.max(0, Math.min(pct, 100));
+    barraDownload.style.width = limitado + '%';
+    percentualDownload.textContent = limitado.toFixed(0) + '%';
+  }
+
+  async function baixarModelo() {
+    const nome = nomeModeloEl.value.trim();
+    if (!nome) { nomeModeloEl.focus(); return; }
+
+    atualizarBarraDownload(0);
+    mensagemDownload.hidden = true;
+    statusDownload.textContent = 'Conectando ao Ollama...';
+
+    botaoBaixar.disabled = true;
+    botaoBaixar.classList.add('carregando');
+    rotuloBotao.textContent = 'Baixando...';
+    nomeModeloEl.disabled = true;
+
+    try {
+      const r = await fetch('http://localhost:11434/api/pull', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: nome, stream: true })
+      });
+
+      if (!r.ok) throw new Error('O Ollama respondeu com erro: ' + r.status);
+
+      const leitor = r.body.getReader();
+      const decoder = new TextDecoder();
+      let sobra = '';
+
+      while (true) {
+        const { value, done } = await leitor.read();
+        if (done) break;
+
+        sobra += decoder.decode(value, { stream: true });
+        const linhas = sobra.split('\n');
+        sobra = linhas.pop();
+
+        for (const linha of linhas) {
+          if (!linha.trim()) continue;
+          const evento = JSON.parse(linha);
+
+          if (evento.error) throw new Error(evento.error);
+
+          statusDownload.textContent = evento.status || '';
+
+          // a razão entre completed e total vira a barra visual
+          if (evento.completed && evento.total) {
+            const pct = (evento.completed / evento.total) * 100;
+            atualizarBarraDownload(pct);
+          }
+
+          if (evento.status === 'success') {
+            atualizarBarraDownload(100);
+            mostrarMensagem(mensagemDownload, 'sucesso', '"' + nome + '" foi instalado com sucesso!');
+            carregarListaModelos();
+          }
+        }
+      }
+
+    } catch (erro) {
+      mostrarMensagem(mensagemDownload, 'erro', 'Não foi possível baixar "' + nome + '": ' + erro.message);
+      statusDownload.textContent = 'Falhou.';
+      console.error(erro);
+    } finally {
+      botaoBaixar.disabled = false;
+      botaoBaixar.classList.remove('carregando');
+      rotuloBotao.textContent = textoOriginalBotao;
+      nomeModeloEl.disabled = false;
+    }
+  }
+
+  botaoBaixar.addEventListener('click', baixarModelo);
+  nomeModeloEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !botaoBaixar.disabled) { e.preventDefault(); baixarModelo(); }
+  });
+
+  /* ---- ponto de partida ---- */
+  carregarListaModelos();
+</script>
+
+</body>
+</html>
