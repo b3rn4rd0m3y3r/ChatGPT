@@ -183,7 +183,7 @@ function derived(n){const p=n.p,o=[],f=(x,d=2)=>Number.isFinite(x)?x.toFixed(d):
   if(n.type=='pipe'){const hf=10.643*p.len*Math.pow(Q,1.852)/(Math.pow(p.c,1.852)*Math.pow(D,4.87));
    o.push(['Velocidade (Q teste)',f(v)+' m/s'],['Perda unitária J',f(hf/p.len*100)+' m/100 m'],['Perda total hf',f(hf,3)+' m.c.a.']);
    if(v>3)o.push(['⚠','velocidade acima de 3 m/s'])}
-  else if(n.type!='meter'){const k=p.k*(n.type=='valve'&&p.open<100?100/Math.max(p.open,1):1);o.push(['Velocidade (Q teste)',f(v)+' m/s'],['K efetivo',f(k)],['Perda local hl',f(k*v*v/2/G,3)+' m.c.a.'])}
+  else if(n.type!='meter'){const k=kEff(n);o.push(['Velocidade (Q teste)',f(v)+' m/s'],['K efetivo',f(k)],['Perda local hl',f(k*v*v/2/G,3)+' m.c.a.'])}
  }
  if(n.type=='tank'){const A=p.cap/1000/p.h;o.push(['Área da base',f(A)+' m²'],['Volume atual',f(p.cap*p.lvl/100,0)+' L'],['Altura da lâmina',f(p.h*p.lvl/100)+' m'],['Cota da superfície',f(p.z+p.h*p.lvl/100)+' m'])}
  if(n.type=='pump'){o.push(['Potência nominal',f(p.cv*.7355)+' kW'],['H a Q = Qmáx/2',f(p.h0*(1-.25))+' m.c.a.'],['Pot. hidráulica em Qmáx/2',f(1000*G*(p.qmax/7200)*p.h0*.75/1000)+' kW'])}
@@ -205,21 +205,27 @@ function field(f,v){const[k,l,t,a,b,c,d]=f;let i;
  else if(t=='bool')i=`<input type="checkbox" data-k="${k}"${v?' checked':''}>`;
  else i=`<span class="u"><input type="number" data-k="${k}" value="${v}" min="${b}" max="${c}" step="${d}"><i>${a}</i></span>`;
  return`<div class="row"><label>${l}</label><div class="u">${i}</div></div>`}
-function props(){const R=$('#right'),s=S.sel;
+function props(part){const R=$('#right'),s=S.sel;
  if(!s){const pm=S.nodes.filter(n=>n.type=='meter').length;
   R.innerHTML=`<h2>Propriedades</h2><div class="pend">Selecione um componente.</div><h2>Rede</h2><div class="box"><div class="kv"><span>Componentes</span><span>${S.nodes.length}</span></div><div class="kv"><span>Conexões</span><span>${S.links.length}</span></div><div class="kv"><span>Medidores</span><span>${pm}</span></div></div>${simStatus()}`;return}
  if(s.k=='l'){R.innerHTML=`<h2>Conexão</h2><button class="danger" onclick="del()">Excluir conexão</button>`;return}
  const n=node(s.id),p=n.p;let h=`<h2>${TN[n.type]}<span class="tag">#${n.id}</span></h2><div class="row"><label>Nome / TAG</label><input type="text" data-k="name" value="${p.name}"></div>`;
- FIELDS[n.type].forEach(f=>h+=field(f,p[f[0]]));
+ FIELDS[n.type].forEach(f=>h+=field(f,p[f[0]]));const hf=h;h='';
  const nb=[];S.links.forEach(l=>{if(l.a.id==n.id)nb.push(node(l.b.id));if(l.b.id==n.id)nb.push(node(l.a.id))});
  nb.forEach(m=>{if(p.dn&&m.p.dn&&m.p.dn!=p.dn)h+=`<div class="warn">⚠ Ligado a ${m.p.name} (DN ${m.p.dn}): requer redução/bucha.</div>`});
  if(n.type!='meter')h+=resBox(n);const d=derived(n);if(d.length)h+='<h2>Cálculo (pré-visualização)</h2><div class="box">'+d.map(x=>`<div class="kv"><span>${x[0]}</span><span>${x[1]}</span></div>`).join('')+'</div>';
  if(n.type=='meter')h+=`<h2>Leituras</h2><div class="box"><div class="kv"><span>Pressão</span><b>${fmt(pm(n,p.unit))} ${p.unit}</b></div><div class="kv"><span>Vazão</span><b>${fmt(qh(n)==null?null:Math.abs(qh(n)))} m³/h</b></div><div class="kv"><span>Conectado a</span><span>${nb.length}/2 portas</span></div></div>${S.res.ok?'':'<div class="warn">'+S.res.msg+'</div>'}`;
  h+=`<h2>Conexões</h2><div class="kv"><span>Portas ocupadas</span><span class="${nb.length==ports(n).length?'ok':''}">${nb.length}/${ports(n).length}</span></div><div style="display:flex;gap:6px;margin-top:10px"><button onclick="rot()">⟳ Girar (R)</button><button class="danger" onclick="del()">Excluir</button></div>`;
- R.innerHTML=h}
+
+ if(part){const rb=$('#resbox');if(rb){rb.innerHTML=h;return}}
+ R.innerHTML=hf+'<div id="resbox">'+h+'</div>'}
+const clampv=(t,v)=>{const lo=parseFloat(t.min),hi=parseFloat(t.max);if(Number.isFinite(lo))v=Math.max(v,lo);if(Number.isFinite(hi))v=Math.min(v,hi);return v};
+$('#right').addEventListener('input',e=>{const t=e.target,k=t.dataset.k;if(!k||!S.sel||S.sel.k!='n'||(t.type!='number'&&t.type!='text'))return;
+ let v=t.type=='number'?parseFloat(t.value):t.value;if(t.type=='number'){if(!Number.isFinite(v))return;v=clampv(t,v)}
+ node(S.sel.id).p[k]=v;draw();props(true)});
 $('#right').addEventListener('change',e=>{const k=e.target.dataset.k;if(!k||!S.sel)return;const n=node(S.sel.id),p=n.p;
  let v=e.target.type=='checkbox'?e.target.checked:e.target.type=='number'?parseFloat(e.target.value):e.target.value;
- if(e.target.type=='number'&&!Number.isFinite(v))v=p[k];
+ if(e.target.type=='number')v=Number.isFinite(v)?clampv(e.target,v):p[k];
  if(e.target.tagName=='SELECT'&&['dn','cap','cv','angle'].includes(k))v=+v;
  p[k]=v;
  if(k=='cv'&&PUMPS[v]){p.h0=PUMPS[v][0];p.qmax=PUMPS[v][1]}
@@ -230,7 +236,8 @@ $('#right').addEventListener('change',e=>{const k=e.target.dataset.k;if(!k||!S.s
 let moving=0;
 const UP={mca:1,kPa:9.80665,bar:.0980665};
 const hz=n=>n.p.z||0;
-const fmt=(v,d=2)=>v==null||!Number.isFinite(v)?'—':v.toFixed(d);
+const dur=m=>m<120?fmt(m,0)+' min':m<2880?fmt(m/60,1)+' h':fmt(m/1440,1)+' dias';
+const fmt=(v,d=2)=>{if(v==null||!Number.isFinite(v))return'—';const s=v.toFixed(d);return/^-0\.?0*$/.test(s)?s.slice(1):s};
 const pm=(n,u)=>{const R=S.res;if(!R||!R.ok)return null;const H=R.H[n.id];if(!H||H[0]==null||H[1]==null)return null;return((H[0]+H[1])/2-hz(n))*UP[u]};
 const qh=n=>{const R=S.res;return R&&R.ok&&R.Q[n.id]!=null?R.Q[n.id]*3600:null};
 function spec(n){const p=n.p;switch(n.type){
@@ -241,16 +248,23 @@ function spec(n){const p=n.p;switch(n.type){
  case'tee':return['Conexão T',`DN ${p.dn} mm`];
  case'valve':return[VT[p.vt][1],`DN ${p.dn} · ${p.open}%`];
  default:{const L=[],q=qh(n);if(p.kind!='q')L.push('P '+fmt(pm(n,p.unit))+' '+p.unit);if(p.kind!='p')L.push('Q '+fmt(q==null?null:Math.abs(q))+' m³/h');return L}}}
+/* K do registro em função da abertura: multiplicador sobre o K aberto (interpolação log-linear de valores típicos) */
+const KT={gaveta:[[100,1],[75,6],[50,30],[25,160],[10,1000]],esfera:[[100,1],[75,5],[50,40],[25,300],[10,2000]],globo:[[100,1],[75,1.3],[50,2.2],[25,8],[10,60]]};
+function kEff(n){const p=n.p,K=p.k;if(n.type!='valve'||p.vt=='retencao')return K;
+ const t=KT[p.vt],o=Math.min(Math.max(p.open,0),100);if(o>=100)return K;
+ if(o<10)return K*t[4][1]*Math.pow(10/Math.max(o,.01),4);
+ for(let i=0;i<4;i++){const[A,x]=t[i],[B,y]=t[i+1];if(o<=A&&o>=B){const q=(A-o)/(A-B);return K*Math.exp(Math.log(x)+q*(Math.log(y)-Math.log(x)))}}return K}
+/* elemento de 2 portas -> aresta. closed = vazão exatamente nula (aresta removida); ow = sentido único (bomba, retenção) */
 function edgeOf(n){const p=n.p,D=diam(n),A=Math.PI*D*D/4;
- if(n.type=='pump'){if(p.on&&p.h0>0&&p.qmax>0)return{pump:1,h0:p.h0,qm:p.qmax/3600};return{r:1e14,n:2}}
- if(n.type=='pipe')return{r:Math.max(10.643*Math.max(p.len,.1)/(Math.pow(Math.max(p.c,1),1.852)*Math.pow(D,4.87)),1e-2),n:1.852};
- let K=n.type=='meter'?(p.kind=='p'?.01:.2):p.k;
- if(n.type=='valve'){if(p.open<=0)return{r:1e14,n:2};if(p.open<100)K*=100/p.open}
- const e={r:Math.max(K/(2*G*A*A),1e-2),n:2};if(n.type=='valve'&&p.vt=='retencao')e.chk=1;return e}
-/* vazão [m³/s] e condutância dQ/dΔ em função de Δ=Hi-Hj; regularizado perto de zero */
-function phi(e,d){
- if(e.pump){const s=Math.sqrt(Math.max(1+d/e.h0,0));return[e.qm*s,e.qm/(2*e.h0*Math.max(s,.05))]}
- const r=e.chk&&d<0?e.r*1e6:e.r,a=Math.abs(d),dl=1e-3;
+ if(n.type=='pump')return p.on&&p.h0>0&&p.qmax>0?{pump:1,ow:1,h0:p.h0,qm:p.qmax/3600}:{closed:1};
+ if(n.type=='pipe')return{r:Math.max(10.67*Math.max(p.len,.1)/(Math.pow(Math.max(p.c,1),1.852)*Math.pow(D,4.87)),1e-2),n:1.852};
+ if(n.type=='valve'&&p.open<=0)return{closed:1};
+ const K=n.type=='meter'?(p.kind=='p'?.01:.2):kEff(n);
+ return{r:Math.max(K/(2*G*A*A),1e-2),n:2,ow:n.type=='valve'&&p.vt=='retencao'?1:0}}
+/* vazão [m\u00b3/s] e condutância dQ/d\u0394 para \u0394=Hi-Hj. Regularizado perto de zero (zona linear). Bomba: H=H0(1-(Q/Qm)^2) */
+function phi(e,d){const dl=1e-3;
+ if(e.pump){const x=d+e.h0;if(x<dl){const g=e.qm*Math.sqrt(dl/e.h0)/dl;return[g*x,g]}const s=Math.sqrt(x/e.h0);return[e.qm*s,e.qm/(2*e.h0*s)]}
+ const a=Math.abs(d),r=e.r;
  if(a<dl){const g=Math.pow(dl/r,1/e.n)/dl;return[g*d,g]}
  const q=Math.pow(a/r,1/e.n);return[d<0?-q:q,q/(e.n*a)]}
 function gauss(L,b){const n=b.length;for(let c=0;c<n;c++){let m=c;for(let r=c+1;r<n;r++)if(Math.abs(L[r][c])>Math.abs(L[m][c]))m=r;
@@ -263,32 +277,42 @@ function sim(){const R={ok:false,msg:'',H:{},Q:{},net:{},it:0,err:0};S.res=R;
  S.nodes.forEach(n=>ports(n).forEach((_,i)=>par[key(n.id,i)]=key(n.id,i)));
  S.links.forEach(l=>uni(key(l.a.id,l.a.p),key(l.b.id,l.b.p)));
  S.nodes.forEach(n=>{if(n.type=='tee'||n.type=='tank')for(let i=1;i<ports(n).length;i++)uni(key(n.id,0),key(n.id,i))});
- const idx={},nn=[],id=(n,i)=>{const r=find(key(n.id,i));if(!(r in idx)){idx[r]=nn.length;nn.push({fix:null,adj:[]})}return idx[r]};
+ const idx={},nn=[],id=(n,i)=>{const r=find(key(n.id,i));if(!(r in idx)){idx[r]=nn.length;nn.push({fix:null})}return idx[r]};
  S.nodes.forEach(n=>ports(n).forEach((_,i)=>id(n,i)));
  const E=[];
  for(const n of S.nodes){
-  if(n.type=='tank'){const k=id(n,0),h=n.p.z+n.p.h*n.p.lvl/100;if(nn[k].fix!==null&&Math.abs(nn[k].fix-h)>1e-6){R.msg='Reservatórios de níveis diferentes ligados diretamente: coloque cano, bomba ou registro entre eles.';return}nn[k].fix=h}
-  else if(n.type!='tee'){const i=id(n,0),j=id(n,1);if(i!=j)E.push({c:n,i,j,...edgeOf(n)})}}
- E.forEach(e=>{nn[e.i].adj.push(e.j);nn[e.j].adj.push(e.i)});
- const reach=nn.map(v=>v.fix!==null),st=[];reach.forEach((r,k)=>{if(r)st.push(k)});
- if(!st.length){R.msg='Adicione ao menos um reservatório conectado à rede.';return}
- while(st.length){const k=st.pop();for(const m of nn[k].adj)if(!reach[m]){reach[m]=true;st.push(m)}}
- const top=Math.max(...nn.filter(v=>v.fix!==null).map(v=>v.fix));
- let H=nn.map(v=>v.fix!==null?v.fix:top);
- const U=[],pos={};nn.forEach((v,k)=>{if(reach[k]&&v.fix===null){pos[k]=U.length;U.push(k)}});
- const AE=E.filter(e=>reach[e.i]),norm=a=>a.reduce((m,x)=>Math.max(m,Math.abs(x)),0);
- const F=H=>{const f=new Array(U.length).fill(0);for(const e of AE){const Q=phi(e,H[e.i]-H[e.j])[0];if(pos[e.i]!==undefined)f[pos[e.i]]-=Q;if(pos[e.j]!==undefined)f[pos[e.j]]+=Q}return f};
- let f=F(H),nf=norm(f),it=0;
- while(nf>1e-8&&it<300&&U.length){it++;
-  const L=U.map(()=>new Array(U.length).fill(0));
-  for(const e of AE){const g=phi(e,H[e.i]-H[e.j])[1],a=pos[e.i],b=pos[e.j];if(a!==undefined)L[a][a]+=g;if(b!==undefined)L[b][b]+=g;if(a!==undefined&&b!==undefined){L[a][b]-=g;L[b][a]-=g}}
-  const d=gauss(L,f.slice());let lam=1,H2,f2,n2;
-  for(let t=0;t<12;t++){H2=H.slice();U.forEach((k,m)=>H2[k]+=lam*d[m]);f2=F(H2);n2=norm(f2);if(n2<nf||t==11)break;lam/=2}
-  H=H2;f=f2;nf=n2}
- R.it=it;R.err=nf;
- if(nf>=1e-6){R.msg='O solver não convergiu (resíduo '+nf.toExponential(1)+' m³/s).';return}
+  if(n.type=='tank'){const k=id(n,0),h=n.p.z+n.p.h*n.p.lvl/100;if(nn[k].fix!==null&&Math.abs(nn[k].fix-h)>1e-6){R.msg='Reservat\u00f3rios de n\u00edveis diferentes ligados diretamente: coloque cano, bomba ou registro entre eles.';return}nn[k].fix=h}
+  else if(n.type!='tee'){const i=id(n,0),j=id(n,1),o=edgeOf(n);if(o.closed||i==j)R.Q[n.id]=0;else E.push({c:n,i,j,on:1,...o})}}
+ const fx=nn.filter(v=>v.fix!==null).map(v=>v.fix);
+ if(!fx.length){R.msg='Adicione ao menos um reservat\u00f3rio conectado \u00e0 rede.';return}
+ const top=Math.max(...fx),mid=(top+Math.min(...fx))/2,norm=a=>a.reduce((m,x)=>Math.max(m,Math.abs(x)),0);
+ let reach,U,pos,AE;
+ const setup=()=>{const adj=nn.map(()=>[]);AE=E.filter(e=>e.on);AE.forEach(e=>{adj[e.i].push(e.j);adj[e.j].push(e.i)});
+  reach=nn.map(v=>v.fix!==null);const st=[];reach.forEach((r,k)=>{if(r)st.push(k)});
+  while(st.length){const k=st.pop();for(const m of adj[k])if(!reach[m]){reach[m]=true;st.push(m)}}
+  U=[];pos={};nn.forEach((v,k)=>{if(reach[k]&&v.fix===null){pos[k]=U.length;U.push(k)}});AE=AE.filter(e=>reach[e.i])};
+ const Fr=H=>{const f=new Array(U.length).fill(0);for(const e of AE){const Q=phi(e,H[e.i]-H[e.j])[0];if(pos[e.i]!==undefined)f[pos[e.i]]-=Q;if(pos[e.j]!==undefined)f[pos[e.j]]+=Q}return f};
+ const newton=H0=>{let H=H0.slice(),f=Fr(H),nf=norm(f),it=0;
+  while(nf>1e-9&&it<80&&U.length){it++;
+   const L=U.map(()=>new Array(U.length).fill(0));
+   for(const e of AE){const g=phi(e,H[e.i]-H[e.j])[1],a=pos[e.i],b=pos[e.j];if(a!==undefined)L[a][a]+=g;if(b!==undefined)L[b][b]+=g;if(a!==undefined&&b!==undefined){L[a][b]-=g;L[b][a]-=g}}
+   const d=gauss(L,f.slice());let lam=1,ok=0,H2,f2,n2;
+   for(let t=0;t<25;t++){H2=H.slice();U.forEach((k,m)=>H2[k]+=lam*d[m]);f2=Fr(H2);n2=norm(f2);if(n2<nf){ok=1;break}lam/=2}
+   if(!ok)break;H=H2;f=f2;nf=n2}
+  return{H,nf,it}};
+ let H=nn.map(v=>v.fix!==null?v.fix:top),done=0;
+ for(let loop=0;loop<40&&!done;loop++){setup();let best=null;
+  for(const g of [H,nn.map(v=>v.fix!==null?v.fix:top),nn.map(v=>v.fix!==null?v.fix:mid)]){const r=newton(g);if(!best||r.nf<best.nf)best=r;if(r.nf<1e-9)break}
+  H=best.H;R.it+=best.it;R.err=best.nf;
+  if(best.nf>=1e-7){R.msg='O solver n\u00e3o convergiu (res\u00edduo '+best.nf.toExponential(1)+' m\u00b3/s).';return}
+  /* estados de bombas e registros de reten\u00e7\u00e3o: fecha se houver refluxo, reabre se voltar a ter diferen\u00e7a favor\u00e1vel */
+  let ch=0;
+  for(const e of E){if(!e.ow)continue;const q=phi(e,H[e.i]-H[e.j])[0];
+   if(e.on){if(reach[e.i]&&q<-1e-9){e.on=0;ch++}}else if(reach[e.i]&&reach[e.j]&&q>1e-9){e.on=1;ch++}}
+  if(!ch)done=1}
+ if(!done){R.msg='Os estados de bombas/registros de reten\u00e7\u00e3o n\u00e3o estabilizaram.';return}
  S.nodes.forEach(n=>{R.H[n.id]=ports(n).map((_,i)=>{const k=id(n,i);return reach[k]?H[k]:null})});
- for(const e of AE)R.Q[e.c.id]=phi(e,H[e.i]-H[e.j])[0];
+ for(const e of E){if(!e.on)R.Q[e.c.id]=0;else if(reach[e.i]){const q=phi(e,H[e.i]-H[e.j])[0];R.Q[e.c.id]=Math.abs(q)<1e-12?0:q}}
  S.nodes.forEach(n=>{if(n.type=='tank'){const k=id(n,0);let s=0;for(const e of AE){const Q=R.Q[e.c.id];if(e.j==k)s+=Q;if(e.i==k)s-=Q}R.net[n.id]=s}});
  R.ok=true;
  }catch(err){R.ok=false;R.msg='Erro no solver: '+err.message}}
@@ -297,12 +321,12 @@ function resBox(n){const R=S.res,T='<h2>Simulação</h2>';
  const H=R.H[n.id];if(!H||H.every(x=>x==null))return T+'<div class="warn">Sem ligação com um reservatório: não simulado.</div>';
  const o=[],z=hz(n),Q=R.Q[n.id];let w='';
  H.forEach((h,i)=>{const m=h-z;o.push([`Pressão porta ${i+1}`,`${fmt(m)} mca · ${fmt(m*9.80665,1)} kPa`]);if(m<-.01)w+=`<div class="warn">⚠ Pressão negativa na porta ${i+1} (risco de cavitação).</div>`});
- if(Q!=null){const q=Math.abs(Q),v=q/(Math.PI*diam(n)**2/4);o.push(['Vazão',fmt(q*3600)+' m³/h ('+(Q>=0?'porta 1→2':'porta 2→1')+')']);
+ if(Q!=null){const q=Math.abs(Q),v=q/(Math.PI*diam(n)**2/4);o.push(['Vazão',fmt(q*3600)+' m³/h ('+(q<1e-9?'sem fluxo':Q>=0?'porta 1→2':'porta 2→1')+')']);
   if(n.type=='pump'){const hp=H[1]-H[0];o.push(['Altura manométrica',fmt(hp)+' m.c.a.'],['Potência absorvida',fmt(G*q*hp/(n.p.eff/100))+' kW'])}
   else{o.push(['Velocidade',fmt(v)+' m/s'],['Perda de carga',fmt(Math.abs(H[0]-H[1]),3)+' m.c.a.']);if(v>3)w+='<div class="warn">⚠ Velocidade acima de 3 m/s.</div>'}}
  if(n.type=='tank'){const net=R.net[n.id]*3600,vol=n.p.cap/1000,e=Math.abs(net)<.001;
   o.push(['Vazão líquida',fmt(net)+' m³/h ('+(e?'estável':net>0?'enchendo':'esvaziando')+')']);
-  if(!e)o.push([net>0?'Tempo até encher':'Tempo até esvaziar',fmt(60*(net>0?vol*(1-n.p.lvl/100):vol*n.p.lvl/100)/Math.abs(net),0)+' min'])}
+  if(!e)o.push([net>0?'Tempo até encher':'Tempo até esvaziar',dur(60*(net>0?vol*(1-n.p.lvl/100):vol*n.p.lvl/100)/Math.abs(net))])}
  return T+'<div class="box">'+o.map(x=>`<div class="kv"><span>${x[0]}</span><span>${x[1]}</span></div>`).join('')+'</div>'+w}
 function simStatus(){const R=S.res;if(!R||!R.ok)return`<h2>Simulação</h2><div class="warn">${R&&R.msg||'Sem resultados.'}</div>`;
  const bal=Object.values(R.net).reduce((a,b)=>a+b,0)*3600;
