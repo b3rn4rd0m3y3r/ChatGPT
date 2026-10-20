@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ollama — gerador de embeddings</title>
+<style>
+:root{
+    --azul:#3b82f6;
+    --roxo:#7c3aed;
+    --verde:#0e9488;
+    --ambar:#e08a1e;
+    --rosa:#e0247a;
+    --card:#ffffff;
+    --texto:#1e293b;
+    --borda:#dbe4f0;
+    --cinza:#64748b;
+}
+
+*{ box-sizing:border-box; }
+
+body{
+    margin:0;
+    min-height:100vh;
+    background:linear-gradient(135deg,#dbeafe,#eef2ff,#ede9fe);
+    font-family:"Trebuchet MS",Arial,sans-serif;
+    color:var(--texto);
+}
+
+.pagina{
+    max-width:880px;
+    margin:0 auto;
+    padding:28px 24px 60px;
+}
+
+/* ---- topo ---- */
+header.topo{
+    background:linear-gradient(135deg,#4f46e5,#7c3aed,#db2777);
+    color:white;
+    border-radius:16px;
+    padding:22px 26px;
+    margin-bottom:22px;
+    box-shadow:0 14px 30px rgba(124,58,237,.25);
+}
+
+header.topo h1{
+    margin:0;
+    font-size:23px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+}
+
+header.topo p{
+    margin:6px 0 0 36px;
+    font-size:13.5px;
+    opacity:.9;
+}
+
+/* ---- paineis ---- */
+.painel{
+    background:var(--card);
+    border-radius:16px;
+    box-shadow:0 10px 26px rgba(30,41,59,.08);
+    padding:22px 24px 24px;
+    margin-bottom:20px;
+    border-top:5px solid var(--tema, var(--azul));
+}
+
+.painel[hidden]{ display:none; }
+
+.painel-texto{ --tema:var(--verde); }
+.painel-resultado{ --tema:var(--roxo); }
+
+.painel h2{
+    margin:0 0 14px;
+    font-size:18px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+}
+
+.passo{
+    width:28px;
+    height:28px;
+    border-radius:50%;
+    background:var(--tema);
+    color:white;
+    font-size:14px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-shrink:0;
+}
+
+label{
+    display:block;
+    margin-bottom:7px;
+    font-weight:bold;
+    font-size:13.5px;
+}
+
+textarea,
+select{
+    width:100%;
+    font-family:inherit;
+    border:1px solid var(--borda);
+    border-radius:10px;
+    outline:none;
+    transition:.2s;
+}
+
+textarea{
+    min-height:170px;
+    resize:vertical;
+    padding:13px 14px;
+    font-size:15px;
+    line-height:1.55;
+}
+
+select{
+    padding:11px 12px;
+    font-size:14.5px;
+    background:white;
+}
+
+textarea:focus,
+select:focus{
+    border-color:var(--tema, var(--azul));
+    box-shadow:0 0 0 4px rgba(14,148,136,.15);
+}
+
+textarea:disabled,
+select:disabled{ background:#f8fafc; color:var(--cinza); }
+
+.dica{
+    font-size:12.5px;
+    color:var(--cinza);
+    line-height:1.5;
+    margin:8px 0 16px;
+}
+
+.opcoes{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:14px;
+    margin-bottom:18px;
+}
+
+@media (max-width:620px){ .opcoes{ grid-template-columns:1fr; } }
+
+/* ---- botoes ---- */
+.btn{
+    border:none;
+    border-radius:10px;
+    padding:13px 22px;
+    font-family:inherit;
+    font-size:15.5px;
+    font-weight:bold;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:9px;
+    transition:.2s;
+}
+
+.btn:hover:not(:disabled){ transform:translateY(-1px); }
+.btn:disabled{ opacity:.6; cursor:default; transform:none; }
+
+.btn-principal{
+    width:100%;
+    color:white;
+    background:linear-gradient(135deg,#0e9488,#0284c7);
+}
+.btn-principal:hover:not(:disabled){ box-shadow:0 8px 18px rgba(14,148,136,.3); }
+
+.btn-secundario{
+    padding:10px 16px;
+    font-size:14px;
+    background:#f5f3ff;
+    color:#6d28d9;
+    border:1px solid #ddd6fe;
+}
+.btn-secundario:hover:not(:disabled){ background:#ede9fe; }
+
+.spinner{
+    width:15px;
+    height:15px;
+    border-radius:50%;
+    border:2.4px solid rgba(255,255,255,.4);
+    border-top-color:#fff;
+    display:none;
+    animation:girar .7s linear infinite;
+}
+
+.btn.carregando .spinner{ display:inline-block; }
+
+@keyframes girar{ to{ transform:rotate(360deg); } }
+
+/* ---- mensagens ---- */
+.mensagem{
+    margin-top:14px;
+    padding:12px 14px;
+    border-radius:10px;
+    font-size:13.5px;
+    line-height:1.5;
+}
+
+.mensagem[hidden]{ display:none; }
+.mensagem.erro{ background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; }
+.mensagem.aviso{ background:#fffbeb; border:1px solid #fde68a; color:#a16207; }
+
+/* ---- resultado ---- */
+.stats{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+    margin-bottom:20px;
+}
+
+@media (max-width:620px){ .stats{ grid-template-columns:1fr; } }
+
+.stat{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    background:#f8fafc;
+    border:1px solid var(--borda);
+    border-radius:10px;
+    padding:10px 14px;
+}
+
+.stat .rotulo{
+    font-size:11.5px;
+    color:var(--cinza);
+    text-transform:uppercase;
+    letter-spacing:.5px;
+}
+
+.stat .valor{
+    font-size:15px;
+    font-weight:bold;
+    font-variant-numeric:tabular-nums;
+}
+
+.subtitulo{
+    font-size:12px;
+    font-weight:bold;
+    text-transform:uppercase;
+    letter-spacing:.5px;
+    color:var(--cinza);
+    margin:18px 0 8px;
+}
+
+pre#previa{
+    margin:0;
+    padding:14px 16px;
+    background:#12141c;
+    color:#e7e9f0;
+    border-radius:10px;
+    font-family:Consolas,"Courier New",monospace;
+    font-size:13.5px;
+    line-height:1.6;
+    white-space:pre-wrap;
+    word-break:break-word;
+}
+
+.grafico-moldura{
+    background:#f8fafc;
+    border:1px solid var(--borda);
+    border-radius:10px;
+    padding:10px;
+}
+
+svg#grafico{
+    display:block;
+    width:100%;
+    height:110px;
+}
+
+.legenda{
+    font-size:12px;
+    color:var(--cinza);
+    line-height:1.5;
+    margin-top:8px;
+}
+
+.legenda .pos{ color:#0e9488; font-weight:bold; }
+.legenda .neg{ color:#e0247a; font-weight:bold; }
+
+textarea#vetorTexto{
+    min-height:150px;
+    font-family:Consolas,"Courier New",monospace;
+    font-size:12.5px;
+    line-height:1.5;
+    background:#fbfcfe;
+}
+
+.acoes{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-top:12px;
+    flex-wrap:wrap;
+}
+
+#feedback{
+    font-size:13px;
+    font-weight:bold;
+    color:#15803d;
+}
+</style>
+</head>
+<body>
+
+<div class="pagina">
+
+    <header class="topo">
+        <h1>
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white"
+                 stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="5" cy="6" r="2.5"/>
+                <circle cx="19" cy="8" r="2.5"/>
+                <circle cx="12" cy="19" r="2.5"/>
+                <line x1="7.2" y1="7" x2="16.8" y2="7.6"/>
+                <line x1="6.3" y1="8.2" x2="10.6" y2="16.9"/>
+                <line x1="17.8" y1="10.2" x2="13.4" y2="16.8"/>
+            </svg>
+            Gerador de embeddings
+        </h1>
+        <p>Aula 20 · POST /api/embed com o embeddinggemma</p>
+    </header>
+
+    <!-- ================= 1) TEXTO ================= -->
+    <section class="painel painel-texto">
+        <h2><span class="passo">1</span> Texto</h2>
+
+        <label for="texto">Digite ou cole o texto</label>
+        <textarea id="texto" spellcheck="false">Como funciona a política de reembolso da loja?</textarea>
+        <p class="dica">O embeddinggemma lê até 2.048 tokens: o que passar disso é cortado no fim. Ctrl+Enter também gera o embedding.</p>
+
+        <div class="opcoes">
+            <div>
+                <label for="tipo">Tipo de texto (prefixo de tarefa)</label>
+                <select id="tipo">
+                    <option value="nenhum">Sem prefixo (texto puro)</option>
+                    <option value="pergunta">Pergunta de busca (query)</option>
+                    <option value="documento">Documento a ser buscado (Aula 21)</option>
+                </select>
+            </div>
+            <div>
+                <label for="dimensoes">Dimensões do vetor</label>
+                <select id="dimensoes">
+                    <option value="768">768 (padrão)</option>
+                    <option value="512">512</option>
+                    <option value="256">256</option>
+                    <option value="128">128</option>
+                </select>
+            </div>
+        </div>
+
+        <button id="botaoGerar" class="btn btn-principal" type="button">
+            <span class="spinner"></span>
+            <span class="rotulo">Gerar embedding</span>
+        </button>
+
+        <div id="mensagem" class="mensagem" hidden></div>
+    </section>
+
+    <!-- ================= 2) EMBEDDING ================= -->
+    <section class="painel painel-resultado" id="painelResultado" hidden>
+        <h2><span class="passo">2</span> Embedding</h2>
+
+        <div class="stats">
+            <div class="stat"><span class="rotulo">Dimensões</span><span class="valor" id="statDimensoes">—</span></div>
+            <div class="stat"><span class="rotulo">Tokens do texto</span><span class="valor" id="statTokens">—</span></div>
+            <div class="stat"><span class="rotulo">Tamanho do vetor</span><span class="valor" id="statNorma">—</span></div>
+            <div class="stat"><span class="rotulo">Tempo</span><span class="valor" id="statTempo">—</span></div>
+        </div>
+
+        <div class="subtitulo">Os 12 primeiros valores</div>
+        <pre id="previa"></pre>
+
+        <div class="subtitulo">O vetor inteiro, uma barra por dimensão</div>
+        <div class="grafico-moldura">
+            <svg id="grafico" viewBox="0 0 768 100" preserveAspectRatio="none" aria-label="Gráfico de barras com os valores do embedding">
+                <line id="linhaCentral" x1="0" y1="50" x2="768" y2="50" stroke="#cbd5e1" stroke-width="0.6"/>
+                <path id="barrasPositivas" d="" stroke="#0e9488" stroke-width="0.8" fill="none"/>
+                <path id="barrasNegativas" d="" stroke="#e0247a" stroke-width="0.8" fill="none"/>
+            </svg>
+        </div>
+        <div class="legenda">
+            Cada barra é uma dimensão: <span class="pos">para cima, valor positivo</span>;
+            <span class="neg">para baixo, valor negativo</span>. O conjunto funciona como uma "impressão digital" do sentido do texto.
+        </div>
+
+        <div class="subtitulo">Vetor completo (JSON)</div>
+        <textarea id="vetorTexto" readonly spellcheck="false"></textarea>
+
+        <div class="acoes">
+            <button id="botaoCopiar" class="btn btn-secundario" type="button">Copiar vetor</button>
+            <button id="botaoBaixar" class="btn btn-secundario" type="button">Baixar .json</button>
+            <span id="feedback"></span>
+        </div>
+    </section>
+
+</div>
+
+<script>
+  /* =====================================================================
+     CONSTANTES
+  ===================================================================== */
+  const URL_EMBED = 'http://localhost:11434/api/embed';
+  const MODELO = 'embedGemma';
+  const DIMENSOES_PADRAO = 768;
+
+  // prefixos de tarefa do embeddinggemma (aula 20)
+  const PREFIXOS = {
+    nenhum: '',
+    pergunta: 'task: search result | query: ',
+    documento: 'title: none | text: '
+  };
+
+  /* =====================================================================
+     ELEMENTOS
+  ===================================================================== */
+  const textoEl = document.querySelector('#texto');
+  const tipoEl = document.querySelector('#tipo');
+  const dimensoesEl = document.querySelector('#dimensoes');
+  const botaoGerar = document.querySelector('#botaoGerar');
+  const rotuloBotao = botaoGerar.querySelector('.rotulo');
+  const mensagemEl = document.querySelector('#mensagem');
+
+  const painelResultado = document.querySelector('#painelResultado');
+  const statDimensoes = document.querySelector('#statDimensoes');
+  const statTokens = document.querySelector('#statTokens');
+  const statNorma = document.querySelector('#statNorma');
+  const statTempo = document.querySelector('#statTempo');
+  const previaEl = document.querySelector('#previa');
+  const graficoEl = document.querySelector('#grafico');
+  const linhaCentralEl = document.querySelector('#linhaCentral');
+  const barrasPositivasEl = document.querySelector('#barrasPositivas');
+  const barrasNegativasEl = document.querySelector('#barrasNegativas');
+  const vetorTextoEl = document.querySelector('#vetorTexto');
+  const botaoCopiar = document.querySelector('#botaoCopiar');
+  const botaoBaixar = document.querySelector('#botaoBaixar');
+  const feedbackEl = document.querySelector('#feedback');
+
+  // guarda o último embedding gerado, para copiar e baixar
+  let ultimo = null;
+
+  /* =====================================================================
+     A CHAMADA AO /api/embed
+  ===================================================================== */
+  async function pedirEmbedding(textoEnviado, dimensoes) {
+    const corpo = { model: MODELO, input: textoEnviado };
+
+    // só envia "dimensions" quando o usuário escolheu algo diferente do
+    // padrão: assim, a chamada normal funciona em qualquer versão do Ollama
+    if (dimensoes !== DIMENSOES_PADRAO) corpo.dimensions = dimensoes;
+
+    const r = await fetch(URL_EMBED, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(corpo)
+    });
+
+    if (!r.ok) {
+      let detalhe = '';
+      try { detalhe = (await r.json()).error || ''; } catch (e) { /* sem corpo JSON */ }
+      throw new Error(detalhe || 'O Ollama respondeu com erro ' + r.status);
+    }
+
+    const dados = await r.json();
+
+    if (!Array.isArray(dados.embeddings) || !Array.isArray(dados.embeddings[0])) {
+      throw new Error('Resposta inesperada do /api/embed');
+    }
+    return dados;
+  }
+
+  /* =====================================================================
+     CÁLCULOS SOBRE O VETOR
+  ===================================================================== */
+  // comprimento do vetor: o /api/embed devolve vetores normalizados, então
+  // o resultado fica em torno de 1.0000
+  function calcularNorma(vetor) {
+    let soma = 0;
+    for (let i = 0; i < vetor.length; i++) soma += vetor[i] * vetor[i];
+    return Math.sqrt(soma);
+  }
+
+  /* =====================================================================
+     TELA
+  ===================================================================== */
+  function mostrarMensagem(tipo, texto) {
+    mensagemEl.className = 'mensagem ' + tipo;
+    mensagemEl.textContent = texto;
+    mensagemEl.hidden = false;
+  }
+
+  function limparMensagem() {
+    mensagemEl.hidden = true;
+    mensagemEl.textContent = '';
+  }
+
+  function mensagemDeErro(erro) {
+    const texto = String((erro && erro.message) || '').toLowerCase();
+
+    if (texto.includes('failed to fetch') || texto.includes('networkerror') || texto.includes('load failed')) {
+      return 'Não consegui falar com o Ollama. Confira se ele está rodando em localhost:11434 e se o OLLAMA_ORIGINS está liberado.';
+    }
+    if (texto.includes('not found') || texto.includes('404')) {
+      return 'O modelo "' + MODELO + '" não está instalado. Rode no terminal: ollama pull ' + MODELO;
+    }
+    return 'Erro ao gerar o embedding: ' + ((erro && erro.message) || 'desconhecido');
+  }
+
+  function definirOcupado(ocupado) {
+    botaoGerar.disabled = ocupado;
+    textoEl.disabled = ocupado;
+    tipoEl.disabled = ocupado;
+    dimensoesEl.disabled = ocupado;
+    botaoGerar.classList.toggle('carregando', ocupado);
+    rotuloBotao.textContent = ocupado ? 'Gerando...' : 'Gerar embedding';
+  }
+
+  // uma barra por dimensão: para cima se positivo, para baixo se negativo
+  function desenharGrafico(vetor) {
+    const largura = vetor.length;
+    const altura = 100;
+    const meio = altura / 2;
+    const maximo = vetor.reduce((m, v) => Math.max(m, Math.abs(v)), 0) || 1;
+
+    let positivas = '';
+    let negativas = '';
+
+    vetor.forEach((valor, i) => {
+      const x = i + 0.5;
+      const tamanho = (Math.abs(valor) / maximo) * (meio - 3);
+
+      if (valor >= 0) {
+        positivas += 'M' + x + ' ' + meio + 'V' + (meio - tamanho).toFixed(2);
+      } else {
+        negativas += 'M' + x + ' ' + meio + 'V' + (meio + tamanho).toFixed(2);
+      }
+    });
+
+    graficoEl.setAttribute('viewBox', '0 0 ' + largura + ' ' + altura);
+    linhaCentralEl.setAttribute('x2', largura);
+    barrasPositivasEl.setAttribute('d', positivas);
+    barrasNegativasEl.setAttribute('d', negativas);
+  }
+
+  function mostrarResultado(vetor, dados, dimensoesPedidas, segundos) {
+    statDimensoes.textContent = vetor.length;
+    statTokens.textContent = dados.prompt_eval_count !== undefined ? dados.prompt_eval_count : '—';
+    statNorma.textContent = calcularNorma(vetor).toFixed(4);
+    statTempo.textContent = segundos.toFixed(2) + ' s';
+
+    const primeiros = vetor.slice(0, 12).map(v => v.toFixed(6)).join(', ');
+    previaEl.textContent = '[ ' + primeiros + ', ... ]   // ' + vetor.length + ' valores no total';
+
+    desenharGrafico(vetor);
+    vetorTextoEl.value = '[' + vetor.join(', ') + ']';
+
+    painelResultado.hidden = false;
+
+    // versões antigas do Ollama podem ignorar "dimensions": avisamos
+    if (vetor.length !== dimensoesPedidas) {
+      mostrarMensagem('aviso', 'Você pediu ' + dimensoesPedidas + ' dimensões, mas o Ollama devolveu ' +
+        vetor.length + '. Essa versão pode não aceitar o parâmetro "dimensions".');
+    }
+  }
+
+  /* =====================================================================
+     AÇÃO PRINCIPAL
+  ===================================================================== */
+  async function gerarEmbedding() {
+    const texto = textoEl.value.trim();
+
+    if (!texto) {
+      mostrarMensagem('erro', 'Digite ou cole um texto antes de gerar o embedding.');
+      textoEl.focus();
+      return;
+    }
+
+    limparMensagem();
+    feedbackEl.textContent = '';
+
+    const prefixo = PREFIXOS[tipoEl.value] || '';
+    const dimensoes = Number(dimensoesEl.value);
+    const inicio = performance.now();
+
+    definirOcupado(true);
+
+    try {
+      const dados = await pedirEmbedding(prefixo + texto, dimensoes);
+      const vetor = dados.embeddings[0];
+      const segundos = (performance.now() - inicio) / 1000;
+
+      ultimo = { modelo: MODELO, texto: texto, prefixo: prefixo, embedding: vetor };
+      mostrarResultado(vetor, dados, dimensoes, segundos);
+
+    } catch (erro) {
+      mostrarMensagem('erro', mensagemDeErro(erro));
+      console.error(erro);
+    } finally {
+      definirOcupado(false);
+    }
+  }
+
+  /* =====================================================================
+     COPIAR E BAIXAR
+  ===================================================================== */
+  function avisar(texto) {
+    feedbackEl.textContent = texto;
+    setTimeout(() => { feedbackEl.textContent = ''; }, 2500);
+  }
+
+  async function copiarVetor() {
+    if (!ultimo) return;
+
+    try {
+      await navigator.clipboard.writeText(vetorTextoEl.value);
+      avisar('Copiado!');
+    } catch (erro) {
+      // plano B para navegadores/contextos sem a API de área de transferência
+      vetorTextoEl.select();
+      const ok = typeof document.execCommand === 'function' && document.execCommand('copy');
+      avisar(ok ? 'Copiado!' : 'Selecione o texto e use Ctrl+C.');
+    }
+  }
+
+  function baixarJson() {
+    if (!ultimo) return;
+
+    const conteudo = JSON.stringify({
+      modelo: ultimo.modelo,
+      texto: ultimo.texto,
+      prefixo: ultimo.prefixo,
+      dimensoes: ultimo.embedding.length,
+      embedding: ultimo.embedding
+    }, null, 2);
+
+    const blob = new Blob([conteudo], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'embedding.json';
+    link.click();
+
+    URL.revokeObjectURL(url);
+    avisar('Arquivo gerado.');
+  }
+
+  /* =====================================================================
+     EVENTOS
+  ===================================================================== */
+  botaoGerar.addEventListener('click', gerarEmbedding);
+  botaoCopiar.addEventListener('click', copiarVetor);
+  botaoBaixar.addEventListener('click', baixarJson);
+
+  textoEl.addEventListener('keydown', (evento) => {
+    if (evento.key === 'Enter' && (evento.ctrlKey || evento.metaKey) && !botaoGerar.disabled) {
+      evento.preventDefault();
+      gerarEmbedding();
+    }
+  });
+</script>
+
+</body>
+</html>
