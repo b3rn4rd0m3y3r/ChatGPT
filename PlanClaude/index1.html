@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Planilha</title>
+<!--
+  PLANILHA — ETAPA 1 (núcleo)
+  ---------------------------------------------------------------
+  Arquitetura (tudo neste arquivo, em camadas independentes):
+    1. ENGINE   : utilitários, tokenizer, parser, avaliador, registro de funções,
+                  Sheet (modelo esparso + grafo de dependências + recálculo)
+    2. UI       : GridUI (renderização, seleção, edição, barra de fórmulas, clipboard)
+    3. DEMO     : dados iniciais
+
+  Pontos de extensão:
+    - Planilha.defineFunction(['NOME','ALIAS'], fn, { lazy })   -> novas funções
+    - BIN_OPS / BIN_PREC                                         -> novos operadores
+    - Sheet.setMany([[chave, texto], ...])                       -> única porta de escrita
+      (ponto natural para plugar undo/redo na Etapa 2)
+
+  Roteiro sugerido:
+    Etapa 1  Núcleo: grade, 4 operações, referências, barra de fórmulas, copiar/colar  (esta)
+    Etapa 2  Undo/redo, preenchimento arrastando, redimensionar colunas/linhas, auto-scroll ao arrastar
+    Etapa 3  Formatação (negrito, cores, formato numérico, alinhamento) e persistência (JSON/localStorage)
+    Etapa 4  Biblioteca de funções (texto, data, lógica, procura) e referências a faixas completas (A:A)
+    Etapa 5  Virtualização de linhas/colunas (milhares de linhas), múltiplas abas, importar/exportar CSV
+-->
+<style>
+  :root{
+    --bg:#f3f4f6; --panel:#ffffff; --grid:#d9dce1; --head-bg:#f1f3f4; --head-fg:#4b5563;
+    --head-active:#d3e3fd; --text:#1f2937; --muted:#6b7280; --accent:#1a73e8;
+    --sel-bg:rgba(26,115,232,.10); --err:#c5221f; --ants:#188038;
+    --font:13px/1 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#1b1d21; --panel:#23262b; --grid:#3a3e45; --head-bg:#2b2f35; --head-fg:#aab1bb;
+      --head-active:#3b4f73; --text:#e5e7eb; --muted:#9ca3af; --accent:#8ab4f8;
+      --sel-bg:rgba(138,180,248,.16); --err:#f28b82; --ants:#81c995;
+    }
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{background:var(--bg);color:var(--text);font:var(--font)}
+  .app{display:flex;flex-direction:column;height:100vh}
+  .titlebar{display:flex;align-items:center;gap:12px;padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--grid)}
+  .titlebar strong{font-size:15px}
+  .tag{font-size:11px;padding:2px 8px;border-radius:999px;background:var(--sel-bg);color:var(--accent)}
+  .hint{margin-left:auto;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .formula-bar{display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--panel);border-bottom:1px solid var(--grid)}
+  .formula-bar input{height:28px;border:1px solid var(--grid);border-radius:4px;background:var(--bg);color:var(--text);font:inherit;font-size:13px;padding:0 8px;outline:none}
+  .formula-bar input:focus{border-color:var(--accent);background:var(--panel)}
+  #nameBox{width:96px;text-align:center}
+  #fbar{flex:1;min-width:0}
+  .fx{font-style:italic;color:var(--muted);font-family:Georgia,serif}
+
+  .grid-wrap{position:relative;flex:1;overflow:auto;background:var(--panel);outline:none}
+  table{border-collapse:separate;border-spacing:0;table-layout:fixed;user-select:none;-webkit-user-select:none}
+  th,td{height:24px;padding:0 6px;border-right:1px solid var(--grid);border-bottom:1px solid var(--grid);overflow:hidden;white-space:nowrap;font-weight:400}
+  thead th{position:sticky;top:0;z-index:5;background:var(--head-bg);color:var(--head-fg);text-align:center;cursor:pointer}
+  tbody th{position:sticky;left:0;z-index:4;background:var(--head-bg);color:var(--head-fg);text-align:center;cursor:pointer}
+  thead th.corner{left:0;z-index:6}
+  th.hl{background:var(--head-active);color:var(--text)}
+  td{background:var(--panel)}
+  td[data-t="num"]{text-align:right}
+  td[data-t="bool"]{text-align:center}
+  td[data-t="err"]{text-align:center;color:var(--err)}
+  td.in-range{background:var(--sel-bg)}
+  td.active{background:var(--panel)}
+
+  .box{position:absolute;display:none;pointer-events:none;border-radius:1px}
+  .sel-box{border:2px solid var(--accent);z-index:2}
+  .ants-box{border:2px dashed var(--ants);z-index:2}
+  .cell-editor{position:absolute;display:none;z-index:3;height:24px;padding:0 4px;border:2px solid var(--accent);
+    background:var(--panel);color:var(--text);font:var(--font);outline:none;border-radius:0}
+
+  .statusbar{display:flex;justify-content:space-between;gap:12px;padding:5px 12px;background:var(--panel);border-top:1px solid var(--grid);font-size:12px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="titlebar">
+    <strong>Planilha</strong><span class="tag">Etapa 1 · núcleo</span>
+    <span class="hint">Digite ou dê duplo clique para editar · fórmulas começam com = · Ctrl+C / Ctrl+X / Ctrl+V</span>
+  </header>
+  <div class="formula-bar">
+    <input id="nameBox" spellcheck="false" autocomplete="off" aria-label="Caixa de nome">
+    <span class="fx">fx</span>
+    <input id="fbar" spellcheck="false" autocomplete="off" aria-label="Barra de fórmulas">
+  </div>
+  <div class="grid-wrap" id="gridWrap" tabindex="0"></div>
+  <footer class="statusbar"><span id="mode">Pronto</span><span id="stats"></span></footer>
+</div>
+
+<script>
+'use strict';
+
+/* ============================== ENGINE START ============================== */
+
+const CONFIG = {
+  rows: 100,
+  cols: 26,
+  defaultColWidth: 96,
+  colWidths: { 0: 130, 5: 110 },
+  rowHeaderWidth: 46,
+  maxRangeCells: 50000
+};
+
+/* ---------- Endereçamento ---------- */
+const colName = (i) => { let s = ''; i++; while (i > 0) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
+const colIndex = (name) => { let n = 0; for (const ch of name.toUpperCase()) n = n * 26 + (ch.charCodeAt(0) - 64); return n - 1; };
+const keyOf = (r, c) => colName(c) + (r + 1);
+const parseKey = (k) => { const m = /^([A-Z]+)(\d+)$/.exec(k); return { c: colIndex(m[1]), r: +m[2] - 1 }; };
+
+/* ---------- Erros ---------- */
+class CellError extends Error { constructor(code) { super(code); this.code = code; } }
+const E = { DIV0: '#DIV/0!', REF: '#REF!', NAME: '#NOME?', VALUE: '#VALOR!', CYCLE: '#CICLO!', PARSE: '#ERRO!', NUM: '#NUM!' };
+
+/* ---------- Conversões e formatação ---------- */
+function parseNumberText(s) {
+  const m = /^([+-]?(?:\d+(?:[.,]\d*)?|[.,]\d+)(?:[eE][+-]?\d+)?)(%?)$/.exec(s);
+  if (!m) return NaN;
+  const n = Number(m[1].replace(',', '.'));
+  return m[2] ? n / 100 : n;
+}
+function fmtNum(n) {
+  if (!isFinite(n)) return E.NUM;
+  return String(Number(n.toPrecision(12))).replace('.', ',');
+}
+function formatValue(v) {
+  if (v === null || v === undefined) return '';
+  if (v instanceof CellError) return v.code;
+  if (typeof v === 'number') return fmtNum(v);
+  if (typeof v === 'boolean') return v ? 'VERDADEIRO' : 'FALSO';
+  return String(v);
+}
+function interpret(raw) {
+  if (raw[0] === "'") return raw.slice(1);                 // apóstrofo força texto
+  const s = raw.trim();
+  if (s === '') return raw;
+  const n = parseNumberText(s);
+  if (!Number.isNaN(n)) return n;
+  const u = s.toUpperCase();
+  if (u === 'TRUE' || u === 'VERDADEIRO') return true;
+  if (u === 'FALSE' || u === 'FALSO') return false;
+  return raw;
+}
+function toNum(v) {
+  if (v === null || v === undefined) return 0;
+  if (typeof v === 'number') return v;
+  if (typeof v === 'boolean') return v ? 1 : 0;
+  if (typeof v === 'string') { const n = parseNumberText(v.trim()); if (Number.isNaN(n)) throw new CellError(E.VALUE); return n; }
+  throw new CellError(E.VALUE);                             // intervalo usado como escalar
+}
+const toText = (v) => (v === null || v === undefined) ? '' : (Array.isArray(v) ? (() => { throw new CellError(E.VALUE); })() : formatValue(v));
+function toBool(v) {
+  if (v === null || v === undefined) return false;
+  if (typeof v === 'boolean') return v;
+  if (typeof v === 'number') return v !== 0;
+  if (typeof v === 'string') { const u = v.toUpperCase(); if (u === 'TRUE' || u === 'VERDADEIRO') return true; if (u === 'FALSE' || u === 'FALSO') return false; }
+  throw new CellError(E.VALUE);
+}
+
+/* ---------- Tokenizer ---------- */
+const REF_RE = /^(\$?)([A-Za-z]{1,3})(\$?)(\d+)/;
+function tokenize(src) {
+  const toks = [];
+  let i = 0;
+  while (i < src.length) {
+    const ch = src[i];
+    if (/\s/.test(ch)) { i++; continue; }
+    const start = i;
+    if (ch === '"') {
+      let j = i + 1, s = '';
+      for (;;) {
+        if (j >= src.length) throw new CellError(E.PARSE);
+        if (src[j] === '"') { if (src[j + 1] === '"') { s += '"'; j += 2; continue; } break; }
+        s += src[j++];
+      }
+      i = j + 1; toks.push({ t: 'str', v: s, start, end: i }); continue;
+    }
+    if (src.startsWith('#REF!', i)) { i += 5; toks.push({ t: 'referr', start, end: i }); continue; }
+    const rest = src.slice(i);
+    let m;
+    if ((m = /^(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?/.exec(rest))) {
+      i += m[0].length; toks.push({ t: 'num', v: parseFloat(m[0]), start, end: i }); continue;
+    }
+    if ((m = REF_RE.exec(rest))) {
+      const after = rest[m[0].length];
+      if (!(after && /[A-Za-z0-9_(.\u00C0-\u024F]/.test(after))) {
+        if (+m[4] < 1) throw new CellError(E.PARSE);
+        i += m[0].length;
+        toks.push({ t: 'ref', colAbs: !!m[1], col: colIndex(m[2]), rowAbs: !!m[3], row: +m[4] - 1, start, end: i });
+        continue;
+      }
+    }
+    if ((m = /^[A-Za-z\u00C0-\u024F_][A-Za-z\u00C0-\u024F_0-9.]*/.exec(rest))) {
+      i += m[0].length; toks.push({ t: 'id', v: m[0], start, end: i }); continue;
+    }
+    const two = src.substr(i, 2);
+    if (two === '<>' || two === '<=' || two === '>=') { i += 2; toks.push({ t: 'op', v: two, start, end: i }); continue; }
+    if ('+-*/^&=<>(),;:%'.includes(ch)) { i++; toks.push({ t: 'op', v: ch, start, end: i }); continue; }
+    throw new CellError(E.PARSE);
+  }
+  return toks;
+}
+
+/* ---------- Parser (descida recursiva com precedência) ---------- */
+const BIN_PREC = { '=': 1, '<>': 1, '<': 1, '>': 1, '<=': 1, '>=': 1, '&': 2, '+': 3, '-': 3, '*': 4, '/': 4, '^': 5 };
+function parse(src) {
+  const toks = tokenize(src);
+  let p = 0;
+  const peek = () => toks[p];
+  const isOp = (v) => peek() && peek().t === 'op' && peek().v === v;
+  const fail = () => { throw new CellError(E.PARSE); };
+  const expect = (v) => { if (!isOp(v)) fail(); p++; };
+  const refNode = (t) => ({ t: 'ref', col: t.col, row: t.row, colAbs: t.colAbs, rowAbs: t.rowAbs });
+
+  function expr(min = 1) {
+    let left = unary();
+    for (;;) {
+      const t = peek();
+      if (!t || t.t !== 'op') break;
+      const prec = BIN_PREC[t.v];
+      if (!prec || prec < min) break;
+      p++;
+      left = { t: 'bin', op: t.v, l: left, r: expr(prec + 1) };
+    }
+    return left;
+  }
+  function unary() {
+    if (isOp('-') || isOp('+')) { const op = toks[p++].v; return { t: 'un', op, arg: unary() }; }
+    return postfix();
+  }
+  function postfix() {
+    let n = primary();
+    while (isOp('%')) { p++; n = { t: 'pct', arg: n }; }
+    return n;
+  }
+  function primary() {
+    const t = toks[p++];
+    if (!t) fail();
+    switch (t.t) {
+      case 'num': return { t: 'num', v: t.v };
+      case 'str': return { t: 'str', v: t.v };
+      case 'referr': throw new CellError(E.REF);
+      case 'ref': {
+        if (isOp(':')) {
+          p++;
+          const t2 = toks[p++];
+          if (!t2 || t2.t !== 'ref') fail();
+          return { t: 'range', a: refNode(t), b: refNode(t2) };
+        }
+        return refNode(t);
+      }
+      case 'id': {
+        const up = t.v.toUpperCase();
+        if (isOp('(')) {
+          p++;
+          const args = [];
+          if (!isOp(')')) {
+            for (;;) {
+              args.push(expr());
+              if (isOp(',') || isOp(';')) { p++; continue; }
+              break;
+            }
+          }
+          expect(')');
+          return { t: 'call', name: up, args };
+        }
+        if (up === 'TRUE' || up === 'VERDADEIRO') return { t: 'bool', v: true };
+        if (up === 'FALSE' || up === 'FALSO') return { t: 'bool', v: false };
+        throw new CellError(E.NAME);
+      }
+      case 'op':
+        if (t.v === '(') { const n = expr(); expect(')'); return n; }
+    }
+    return fail();
+  }
+  const ast = expr();
+  if (p < toks.length) fail();
+  return ast;
+}
+
+/* ---------- Avaliador ---------- */
+function compare(l, r) {
+  const norm = (v, other) => v === null || v === undefined ? (typeof other === 'string' ? '' : 0) : v;
+  l = norm(l, r); r = norm(r, l);
+  const rank = (v) => typeof v === 'number' ? 0 : typeof v === 'string' ? 1 : 2;
+  if (rank(l) !== rank(r)) return rank(l) - rank(r);
+  if (typeof l === 'string') { l = l.toLowerCase(); r = r.toLowerCase(); }
+  return l < r ? -1 : l > r ? 1 : 0;
+}
+const BIN_OPS = {
+  '+': (l, r) => toNum(l) + toNum(r),
+  '-': (l, r) => toNum(l) - toNum(r),
+  '*': (l, r) => toNum(l) * toNum(r),
+  '/': (l, r) => { const a = toNum(l), d = toNum(r); if (d === 0) throw new CellError(E.DIV0); return a / d; },
+  '^': (l, r) => { const v = Math.pow(toNum(l), toNum(r)); if (!isFinite(v)) throw new CellError(E.NUM); return v; },
+  '&': (l, r) => toText(l) + toText(r),
+  '=': (l, r) => compare(l, r) === 0,
+  '<>': (l, r) => compare(l, r) !== 0,
+  '<': (l, r) => compare(l, r) < 0,
+  '>': (l, r) => compare(l, r) > 0,
+  '<=': (l, r) => compare(l, r) <= 0,
+  '>=': (l, r) => compare(l, r) >= 0
+};
+const FUNCTIONS = Object.create(null);
+function defineFunction(names, fn, opts = {}) {
+  for (const n of [].concat(names)) FUNCTIONS[n.toUpperCase()] = { fn, lazy: !!opts.lazy };
+}
+
+function evaluate(node, ctx) {
+  switch (node.t) {
+    case 'num': case 'str': case 'bool': return node.v;
+    case 'ref': return ctx.cell(node.col, node.row);
+    case 'range': return ctx.range(node.a, node.b);
+    case 'un': { const v = toNum(evaluate(node.arg, ctx)); return node.op === '-' ? -v : v; }
+    case 'pct': return toNum(evaluate(node.arg, ctx)) / 100;
+    case 'bin': { const l = evaluate(node.l, ctx); const r = evaluate(node.r, ctx); return BIN_OPS[node.op](l, r); }
+    case 'call': {
+      const f = FUNCTIONS[node.name];
+      if (!f) throw new CellError(E.NAME);
+      if (f.lazy) return f.fn(node.args, ctx);
+      return f.fn(...node.args.map((a) => evaluate(a, ctx)));
+    }
+  }
+  throw new CellError(E.PARSE);
+}
+
+/* ---------- Funções iniciais (a biblioteca cresce nas próximas etapas) ---------- */
+function nums(args) {
+  const out = [];
+  for (const a of args) {
+    if (Array.isArray(a)) {
+      for (const v of a) { if (v instanceof CellError) throw v; if (typeof v === 'number') out.push(v); }
+    } else if (a !== null && a !== undefined) out.push(toNum(a));
+  }
+  return out;
+}
+defineFunction(['SUM', 'SOMA'], (...a) => nums(a).reduce((x, y) => x + y, 0));
+defineFunction(['AVERAGE', 'MEDIA', 'MÉDIA'], (...a) => { const n = nums(a); if (!n.length) throw new CellError(E.DIV0); return n.reduce((x, y) => x + y, 0) / n.length; });
+defineFunction(['MIN', 'MÍNIMO', 'MINIMO'], (...a) => { const n = nums(a); return n.length ? Math.min(...n) : 0; });
+defineFunction(['MAX', 'MÁXIMO', 'MAXIMO'], (...a) => { const n = nums(a); return n.length ? Math.max(...n) : 0; });
+defineFunction(['COUNT', 'CONT.NÚM', 'CONT.NUM'], (...a) => {
+  let c = 0;
+  for (const x of a) { if (Array.isArray(x)) c += x.filter((v) => typeof v === 'number').length; else if (typeof x === 'number') c++; }
+  return c;
+});
+defineFunction('ABS', (x) => Math.abs(toNum(x)));
+defineFunction(['ROUND', 'ARRED'], (x, d = 0) => { const f = Math.pow(10, toNum(d)); return Math.round(toNum(x) * f) / f; });
+defineFunction(['IF', 'SE'], (nodes, ctx) => {
+  if (!nodes.length) throw new CellError(E.PARSE);
+  if (toBool(evaluate(nodes[0], ctx))) return nodes[1] ? evaluate(nodes[1], ctx) : true;
+  return nodes[2] ? evaluate(nodes[2], ctx) : false;
+}, { lazy: true });
+
+/* ---------- Dependências e ajuste de referências ---------- */
+const rectOf = (a, b) => ({ r1: Math.min(a.row, b.row), r2: Math.max(a.row, b.row), c1: Math.min(a.col, b.col), c2: Math.max(a.col, b.col) });
+function collectDeps(ast, set = new Set()) {
+  switch (ast.t) {
+    case 'ref': set.add(keyOf(ast.row, ast.col)); break;
+    case 'range': {
+      const { r1, c1, r2, c2 } = rectOf(ast.a, ast.b);
+      if ((r2 - r1 + 1) * (c2 - c1 + 1) > CONFIG.maxRangeCells) throw new CellError(E.REF);
+      for (let r = r1; r <= r2; r++) for (let c = c1; c <= c2; c++) set.add(keyOf(r, c));
+      break;
+    }
+    case 'un': case 'pct': collectDeps(ast.arg, set); break;
+    case 'bin': collectDeps(ast.l, set); collectDeps(ast.r, set); break;
+    case 'call': ast.args.forEach((a) => collectDeps(a, set)); break;
+  }
+  return set;
+}
+
+/** Desloca referências relativas (respeitando $) — usado ao colar fórmulas. */
+function shiftFormula(raw, dr, dc) {
+  if (!(raw.length > 1 && raw[0] === '=')) return raw;
+  const src = raw.slice(1);
+  let toks;
+  try { toks = tokenize(src); } catch (e) { return raw; }
+  let out = '', last = 0;
+  for (const t of toks) {
+    if (t.t !== 'ref') continue;
+    const col = t.colAbs ? t.col : t.col + dc;
+    const row = t.rowAbs ? t.row : t.row + dr;
+    out += src.slice(last, t.start);
+    out += (col < 0 || row < 0) ? '#REF!' : (t.colAbs ? '$' : '') + colName(col) + (t.rowAbs ? '$' : '') + (row + 1);
+    last = t.end;
+  }
+  return '=' + out + src.slice(last);
+}
+
+/* ---------- Modelo da planilha ---------- */
+class Sheet {
+  constructor({ rows, cols }) {
+    this.rows = rows; this.cols = cols;
+    this.cells = new Map();        // chave "A1" -> célula (esparso)
+    this.dependents = new Map();   // chave -> Set de chaves que a leem
+    this.listeners = [];
+    this._ctx = {
+      cell: (c, r) => {
+        if (!this.inBounds(r, c)) throw new CellError(E.REF);
+        const v = this.value(keyOf(r, c));
+        if (v instanceof CellError) throw v;
+        return v;
+      },
+      range: (a, b) => {
+        const { r1, c1, r2, c2 } = rectOf(a, b);
+        if (!this.inBounds(r1, c1) || !this.inBounds(r2, c2)) throw new CellError(E.REF);
+        const out = [];
+        for (let r = r1; r <= r2; r++) for (let c = c1; c <= c2; c++) out.push(this.value(keyOf(r, c)));
+        return out;
+      }
+    };
+  }
+  on(fn) { this.listeners.push(fn); }
+  inBounds(r, c) { return r >= 0 && c >= 0 && r < this.rows && c < this.cols; }
+  raw(key) { const c = this.cells.get(key); return c ? c.raw : ''; }
+  value(key) {
+    const cell = this.cells.get(key);
+    if (!cell) return null;
+    if (cell.dirty) this._evaluate(cell);
+    return cell.value;
+  }
+  set(key, raw) { this.setMany([[key, raw]]); }
+  setMany(entries) {
+    const touched = [];
+    for (const [key, raw] of entries) { this._store(key, raw); touched.push(key); }
+    this._recalc(touched);
+  }
+  _store(key, raw) {
+    this._unlink(key);
+    if (raw === '' || raw == null) { this.cells.delete(key); return; }
+    const cell = { raw, ast: null, deps: new Set(), value: null, dirty: false, evaluating: false, isFormula: false };
+    if (raw.length > 1 && raw[0] === '=') {
+      cell.isFormula = true;
+      try { cell.ast = parse(raw.slice(1)); cell.deps = collectDeps(cell.ast); cell.dirty = true; }
+      catch (e) { if (!(e instanceof CellError)) throw e; cell.value = e; cell.ast = null; }
+    } else cell.value = interpret(raw);
+    this.cells.set(key, cell);
+    for (const d of cell.deps) {
+      let s = this.dependents.get(d);
+      if (!s) this.dependents.set(d, s = new Set());
+      s.add(key);
+    }
+  }
+  _unlink(key) {
+    const old = this.cells.get(key);
+    if (!old) return;
+    for (const d of old.deps) {
+      const s = this.dependents.get(d);
+      if (s) { s.delete(key); if (!s.size) this.dependents.delete(d); }
+    }
+  }
+  _recalc(startKeys) {
+    const affected = new Set();
+    const stack = [...startKeys];
+    while (stack.length) {
+      const k = stack.pop();
+      if (affected.has(k)) continue;
+      affected.add(k);
+      const ds = this.dependents.get(k);
+      if (ds) for (const d of ds) stack.push(d);
+    }
+    for (const k of affected) { const c = this.cells.get(k); if (c && c.isFormula && c.ast) c.dirty = true; }
+    for (const k of affected) { const c = this.cells.get(k); if (c && c.dirty) this._evaluate(c); }
+    for (const fn of this.listeners) fn([...affected]);
+  }
+  _evaluate(cell) {
+    if (cell.evaluating) throw new CellError(E.CYCLE);
+    cell.evaluating = true;
+    try {
+      let v = evaluate(cell.ast, this._ctx);
+      if (Array.isArray(v)) throw new CellError(E.VALUE);
+      cell.value = v === null || v === undefined ? 0 : v;
+    } catch (e) {
+      if (e instanceof CellError) cell.value = e;
+      else { console.error(e); cell.value = new CellError(E.PARSE); }
+    } finally { cell.evaluating = false; cell.dirty = false; }
+  }
+}
+
+/* =============================== ENGINE END =============================== */
+
+
+/* ================================== UI ==================================== */
+
+function parseTSV(text) {
+  if (text.endsWith('\n')) text = text.slice(0, -1);
+  const rows = [];
+  let row = [], cell = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (q) { if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += ch; }
+    else if (ch === '"' && cell === '') q = true;
+    else if (ch === '\t') { row.push(cell); cell = ''; }
+    else if (ch === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; }
+    else cell += ch;
+  }
+  row.push(cell); rows.push(row);
+  const w = Math.max(...rows.map((r) => r.length));
+  return rows.map((r) => { while (r.length < w) r.push(''); return r; });
+}
+const tsvCell = (s) => /[\t\n"]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+const isTextInput = (el) => el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA');
+
+class GridUI {
+  constructor(sheet) {
+    this.sheet = sheet;
+    this.wrap = document.getElementById('gridWrap');
+    this.nameBox = document.getElementById('nameBox');
+    this.fbar = document.getElementById('fbar');
+    this.modeEl = document.getElementById('mode');
+    this.statsEl = document.getElementById('stats');
+    this.anchor = { r: 0, c: 0 };
+    this.focus = { r: 0, c: 0 };
+    this.prev = null;
+    this.editing = null;
+    this.drag = null;
+    this.clip = null;
+    this.marquee = false;
+    this.measure = document.createElement('canvas').getContext('2d');
+    this.buildDOM();
+    this.bind();
+    sheet.on((keys) => this.onSheetChange(keys));
+    for (let r = 0; r < sheet.rows; r++) for (let c = 0; c < sheet.cols; c++) this.renderCell(r, c);
+    this.renderSelection();
+    this.wrap.focus({ preventScroll: true });
+  }
+
+  /* ---------- construção ---------- */
+  colWidth(c) { return CONFIG.colWidths[c] || CONFIG.defaultColWidth; }
+  buildDOM() {
+    const { rows, cols } = this.sheet;
+    const table = document.createElement('table');
+    let total = CONFIG.rowHeaderWidth;
+    const cg = document.createElement('colgroup');
+    const c0 = document.createElement('col'); c0.style.width = CONFIG.rowHeaderWidth + 'px'; cg.appendChild(c0);
+    for (let c = 0; c < cols; c++) { const col = document.createElement('col'); const w = this.colWidth(c); col.style.width = w + 'px'; total += w; cg.appendChild(col); }
+    table.style.width = total + 'px';
+    table.appendChild(cg);
+
+    this.thead = document.createElement('thead');
+    const hr = document.createElement('tr');
+    this.corner = document.createElement('th'); this.corner.className = 'corner'; hr.appendChild(this.corner);
+    this.colH = [];
+    for (let c = 0; c < cols; c++) { const th = document.createElement('th'); th.textContent = colName(c); th.dataset.c = c; th.dataset.kind = 'col'; this.colH.push(th); hr.appendChild(th); }
+    this.thead.appendChild(hr);
+    table.appendChild(this.thead);
+
+    const tbody = document.createElement('tbody');
+    this.rowH = []; this.cellEls = [];
+    for (let r = 0; r < rows; r++) {
+      const tr = document.createElement('tr');
+      const th = document.createElement('th'); th.textContent = r + 1; th.dataset.r = r; th.dataset.kind = 'row';
+      this.rowH.push(th); tr.appendChild(th);
+      const line = [];
+      for (let c = 0; c < cols; c++) { const td = document.createElement('td'); td.dataset.r = r; td.dataset.c = c; line.push(td); tr.appendChild(td); }
+      this.cellEls.push(line);
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    this.wrap.appendChild(table);
+
+    this.selBox = document.createElement('div'); this.selBox.className = 'box sel-box';
+    this.antsBox = document.createElement('div'); this.antsBox.className = 'box ants-box';
+    this.editor = document.createElement('input'); this.editor.className = 'cell-editor';
+    this.editor.spellcheck = false; this.editor.autocomplete = 'off';
+    this.wrap.append(this.selBox, this.antsBox, this.editor);
+  }
+
+  /* ---------- renderização ---------- */
+  onSheetChange(keys) {
+    for (const k of keys) { const { r, c } = parseKey(k); if (this.sheet.inBounds(r, c)) this.renderCell(r, c); }
+    this.updateChrome();
+  }
+  renderCell(r, c) {
+    const td = this.cellEls[r][c];
+    const v = this.sheet.value(keyOf(r, c));
+    td.textContent = formatValue(v);
+    td.dataset.t = v instanceof CellError ? 'err' : typeof v === 'number' ? 'num' : typeof v === 'boolean' ? 'bool' : 'str';
+  }
+  range() {
+    return {
+      r1: Math.min(this.anchor.r, this.focus.r), r2: Math.max(this.anchor.r, this.focus.r),
+      c1: Math.min(this.anchor.c, this.focus.c), c2: Math.max(this.anchor.c, this.focus.c)
+    };
+  }
+  place(box, r1, c1, r2, c2) {
+    const a = this.cellEls[r1][c1], b = this.cellEls[r2][c2];
+    box.style.left = a.offsetLeft + 'px';
+    box.style.top = a.offsetTop + 'px';
+    box.style.width = (b.offsetLeft + b.offsetWidth - a.offsetLeft) + 'px';
+    box.style.height = (b.offsetTop + b.offsetHeight - a.offsetTop) + 'px';
+    box.style.display = 'block';
+  }
+  renderSelection() {
+    if (this.prev) {
+      const p = this.prev;
+      for (let r = p.r1; r <= p.r2; r++) for (let c = p.c1; c <= p.c2; c++) this.cellEls[r][c].classList.remove('in-range', 'active');
+      for (let c = p.c1; c <= p.c2; c++) this.colH[c].classList.remove('hl');
+      for (let r = p.r1; r <= p.r2; r++) this.rowH[r].classList.remove('hl');
+    }
+    const g = this.range();
+    for (let r = g.r1; r <= g.r2; r++) for (let c = g.c1; c <= g.c2; c++) this.cellEls[r][c].classList.add('in-range');
+    for (let c = g.c1; c <= g.c2; c++) this.colH[c].classList.add('hl');
+    for (let r = g.r1; r <= g.r2; r++) this.rowH[r].classList.add('hl');
+    this.cellEls[this.anchor.r][this.anchor.c].classList.add('active');
+    this.prev = g;
+    this.place(this.selBox, g.r1, g.c1, g.r2, g.c2);
+    this.renderClip();
+    this.updateChrome();
+  }
+  renderClip() {
+    if (this.clip && this.marquee) { const g = this.clip.range; this.place(this.antsBox, g.r1, g.c1, g.r2, g.c2); }
+    else this.antsBox.style.display = 'none';
+  }
+  updateChrome() {
+    const a = this.anchor, g = this.range();
+    if (!this.editing) this.fbar.value = this.sheet.raw(keyOf(a.r, a.c));
+    if (document.activeElement !== this.nameBox) {
+      this.nameBox.value = (g.r1 === g.r2 && g.c1 === g.c2) ? keyOf(a.r, a.c) : keyOf(g.r1, g.c1) + ':' + keyOf(g.r2, g.c2);
+    }
+    this.modeEl.textContent = this.editing ? (this.editing.mode === 'enter' ? 'Inserir' : 'Editar') : 'Pronto';
+    let n = 0, sum = 0;
+    for (let r = g.r1; r <= g.r2; r++) for (let c = g.c1; c <= g.c2; c++) {
+      const v = this.sheet.value(keyOf(r, c));
+      if (typeof v === 'number') { n++; sum += v; }
+    }
+    this.statsEl.textContent = (n > 0 && (g.r1 !== g.r2 || g.c1 !== g.c2))
+      ? `Soma: ${fmtNum(sum)}   Média: ${fmtNum(sum / n)}   Contagem: ${n}` : '';
+  }
+  ensureVisible(r, c) {
+    const td = this.cellEls[r][c], w = this.wrap;
+    const hh = this.thead.offsetHeight, hw = CONFIG.rowHeaderWidth;
+    const top = td.offsetTop, bottom = top + td.offsetHeight, left = td.offsetLeft, right = left + td.offsetWidth;
+    if (top < w.scrollTop + hh) w.scrollTop = top - hh; else if (bottom > w.scrollTop + w.clientHeight) w.scrollTop = bottom - w.clientHeight;
+    if (left < w.scrollLeft + hw) w.scrollLeft = left - hw; else if (right > w.scrollLeft + w.clientWidth) w.scrollLeft = right - w.clientWidth;
+  }
+
+  /* ---------- seleção ---------- */
+  clampR(r) { return Math.max(0, Math.min(this.sheet.rows - 1, r)); }
+  clampC(c) { return Math.max(0, Math.min(this.sheet.cols - 1, c)); }
+  select(r, c) { this.anchor = { r, c }; this.focus = { r, c }; this.renderSelection(); this.ensureVisible(r, c); }
+  extend(r, c) { this.focus = { r, c }; this.renderSelection(); this.ensureVisible(r, c); }
+  selectRect(r1, c1, r2, c2) { this.anchor = { r: r1, c: c1 }; this.focus = { r: r2, c: c2 }; this.renderSelection(); }
+  focusGrid() { this.wrap.focus({ preventScroll: true }); }
+  jump(p, dr, dc) {
+    const { rows, cols } = this.sheet;
+    const ok = (r, c) => r >= 0 && c >= 0 && r < rows && c < cols;
+    const empty = (r, c) => this.sheet.raw(keyOf(r, c)) === '';
+    let n = { r: p.r + dr, c: p.c + dc };
+    if (!ok(n.r, n.c)) return p;
+    if (!empty(p.r, p.c) && !empty(n.r, n.c)) {
+      for (;;) { const m = { r: n.r + dr, c: n.c + dc }; if (!ok(m.r, m.c) || empty(m.r, m.c)) break; n = m; }
+      return n;
+    }
+    while (empty(n.r, n.c)) { const m = { r: n.r + dr, c: n.c + dc }; if (!ok(m.r, m.c)) return n; n = m; }
+    return n;
+  }
+
+  /* ---------- eventos ---------- */
+  bind() {
+    const w = this.wrap;
+    w.addEventListener('mousedown', (e) => this.onMouseDown(e));
+    w.addEventListener('mouseover', (e) => this.onMouseOver(e));
+    document.addEventListener('mouseup', () => { this.drag = null; });
+    w.addEventListener('dblclick', (e) => { const td = e.target.closest('td'); if (td && !this.editing) this.startEdit('edit'); });
+    w.addEventListener('keydown', (e) => this.onKeyDown(e));
+    document.addEventListener('copy', (e) => this.onCopy(e, false));
+    document.addEventListener('cut', (e) => this.onCopy(e, true));
+    document.addEventListener('paste', (e) => this.onPaste(e));
+
+    this.editor.addEventListener('input', () => { this.fbar.value = this.editor.value; this.fitEditor(); });
+    this.editor.addEventListener('keydown', (e) => this.onEditorKey(e));
+    this.fbar.addEventListener('focus', () => { if (!this.editing) this.startEdit('bar'); else this.editing.mode = 'edit'; this.updateChrome(); });
+    this.fbar.addEventListener('input', () => { if (this.editing) { this.editor.value = this.fbar.value; this.fitEditor(); } });
+    this.fbar.addEventListener('keydown', (e) => this.onEditorKey(e));
+
+    this.nameBox.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const m = /^\s*([A-Za-z]+)(\d+)(?::([A-Za-z]+)(\d+))?\s*$/.exec(this.nameBox.value);
+        if (m) {
+          const r1 = this.clampR(+m[2] - 1), c1 = this.clampC(colIndex(m[1]));
+          if (m[3]) this.selectRect(r1, c1, this.clampR(+m[4] - 1), this.clampC(colIndex(m[3])));
+          else this.select(r1, c1);
+          this.ensureVisible(r1, c1);
+        }
+        this.focusGrid(); this.updateChrome();
+      } else if (e.key === 'Escape') { this.focusGrid(); this.updateChrome(); }
+    });
+    this.nameBox.addEventListener('blur', () => this.updateChrome());
+    this.nameBox.addEventListener('focus', () => { if (this.editing) this.commitEdit(); this.nameBox.select(); });
+  }
+
+  onMouseDown(e) {
+    if (e.button !== 0 || e.target === this.editor) return;
+    const td = e.target.closest('td'), th = e.target.closest('th');
+    if (!td && !th) return;
+    e.preventDefault();
+    if (this.editing) this.commitEdit();
+    this.focusGrid();
+    const { rows, cols } = this.sheet;
+    if (td) {
+      const r = +td.dataset.r, c = +td.dataset.c;
+      if (e.shiftKey) this.extend(r, c); else this.select(r, c);
+      this.drag = 'cell';
+    } else if (th.classList.contains('corner')) {
+      this.selectRect(0, 0, rows - 1, cols - 1);
+    } else if (th.dataset.kind === 'col') {
+      const c = +th.dataset.c; this.selectRect(0, c, rows - 1, c); this.drag = 'col';
+    } else if (th.dataset.kind === 'row') {
+      const r = +th.dataset.r; this.selectRect(r, 0, r, cols - 1); this.drag = 'row';
+    }
+  }
+  onMouseOver(e) {
+    if (!this.drag) return;
+    const { rows, cols } = this.sheet;
+    const td = e.target.closest('td'), th = e.target.closest('th');
+    if (this.drag === 'cell' && td) { this.focus = { r: +td.dataset.r, c: +td.dataset.c }; this.renderSelection(); }
+    else if (this.drag === 'col' && th && th.dataset.kind === 'col') { this.focus = { r: rows - 1, c: +th.dataset.c }; this.renderSelection(); }
+    else if (this.drag === 'row' && th && th.dataset.kind === 'row') { this.focus = { r: +th.dataset.r, c: cols - 1 }; this.renderSelection(); }
+  }
+
+  onKeyDown(e) {
+    if (this.editing || e.target !== this.wrap) return;
+    const k = e.key, ctrl = e.ctrlKey || e.metaKey;
+    const arrows = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] };
+    const { rows, cols } = this.sheet;
+    if (arrows[k]) {
+      e.preventDefault();
+      const [dr, dc] = arrows[k];
+      const from = e.shiftKey ? this.focus : this.focus;
+      const t = ctrl ? this.jump(from, dr, dc) : { r: this.clampR(from.r + dr), c: this.clampC(from.c + dc) };
+      if (e.shiftKey) this.extend(t.r, t.c); else this.select(t.r, t.c);
+      return;
+    }
+    if (ctrl) {
+      if (k === 'a' || k === 'A') { e.preventDefault(); this.selectRect(0, 0, rows - 1, cols - 1); }
+      else if (k === 'Home') { e.preventDefault(); this.select(0, 0); }
+      return;                                                  // c/x/v tratados pelos eventos de clipboard
+    }
+    switch (k) {
+      case 'Enter': e.preventDefault(); this.select(this.clampR(this.anchor.r + (e.shiftKey ? -1 : 1)), this.anchor.c); return;
+      case 'Tab': e.preventDefault(); this.select(this.anchor.r, this.clampC(this.anchor.c + (e.shiftKey ? -1 : 1))); return;
+      case 'F2': e.preventDefault(); this.startEdit('edit'); return;
+      case 'Home': e.preventDefault(); this.select(this.anchor.r, 0); return;
+      case 'PageDown': case 'PageUp': {
+        e.preventDefault();
+        const step = Math.max(1, Math.floor(this.wrap.clientHeight / 24) - 1) * (k === 'PageDown' ? 1 : -1);
+        this.select(this.clampR(this.anchor.r + step), this.anchor.c); return;
+      }
+      case 'Delete': case 'Backspace': e.preventDefault(); this.clearSelection(); return;
+      case 'Escape': this.marquee = false; this.renderClip(); return;
+    }
+    // Tecla imprimível: abre o editor e deixa o navegador inserir o caractere no campo focado
+    if (!e.altKey && (k.length === 1 || k === 'Dead' || k === 'Process')) this.startEdit('enter', '');
+  }
+
+  /* ---------- edição ---------- */
+  startEdit(mode, initial) {
+    const { r, c } = this.anchor;
+    const key = keyOf(r, c);
+    const text = initial !== undefined ? initial : this.sheet.raw(key);
+    this.editing = { mode, r, c };
+    this.editor.value = text;
+    this.fbar.value = text;
+    const td = this.cellEls[r][c];
+    this.editor.style.left = td.offsetLeft + 'px';
+    this.editor.style.top = td.offsetTop + 'px';
+    this.editor.style.display = 'block';
+    this.fitEditor();
+    if (mode !== 'bar') { this.editor.focus(); this.editor.setSelectionRange(text.length, text.length); }
+    else this.fbar.setSelectionRange(text.length, text.length);
+    this.updateChrome();
+  }
+  fitEditor() {
+    if (!this.editing) return;
+    const td = this.cellEls[this.editing.r][this.editing.c];
+    const cs = getComputedStyle(this.editor);
+    this.measure.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    const w = this.measure.measureText(this.editor.value).width + 28;
+    this.editor.style.width = Math.max(td.offsetWidth, w) + 'px';
+  }
+  endEdit() {
+    this.editing = null;
+    this.editor.style.display = 'none';
+  }
+  commitEdit(dr = 0, dc = 0) {
+    if (!this.editing) return;
+    const { r, c } = this.editing;
+    const text = this.editor.value;
+    this.endEdit();
+    this.marquee = false;
+    this.sheet.set(keyOf(r, c), text);
+    this.focusGrid();
+    if (dr || dc) this.select(this.clampR(r + dr), this.clampC(c + dc)); else { this.renderClip(); this.updateChrome(); }
+  }
+  cancelEdit() {
+    this.endEdit();
+    this.focusGrid();
+    this.updateChrome();
+  }
+  onEditorKey(e) {
+    const ed = this.editing;
+    if (!ed) return;
+    const arrows = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] };
+    if (e.key === 'Enter') { e.preventDefault(); this.commitEdit(e.shiftKey ? -1 : 1, 0); }
+    else if (e.key === 'Tab') { e.preventDefault(); this.commitEdit(0, e.shiftKey ? -1 : 1); }
+    else if (e.key === 'Escape') { e.preventDefault(); this.cancelEdit(); }
+    else if (e.key === 'F2') { e.preventDefault(); ed.mode = ed.mode === 'enter' ? 'edit' : 'enter'; this.updateChrome(); }
+    else if (ed.mode === 'enter' && arrows[e.key] && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault(); this.commitEdit(...arrows[e.key]);
+    }
+  }
+  clearSelection() {
+    const g = this.range(), entries = [];
+    for (let r = g.r1; r <= g.r2; r++) for (let c = g.c1; c <= g.c2; c++) entries.push([keyOf(r, c), '']);
+    this.marquee = false;
+    this.sheet.setMany(entries);
+    this.renderClip();
+  }
+
+  /* ---------- área de transferência ---------- */
+  onCopy(e, cut) {
+    if (this.editing || isTextInput(document.activeElement)) return;
+    e.preventDefault();
+    const g = this.range(), raws = [], lines = [];
+    for (let r = g.r1; r <= g.r2; r++) {
+      const rr = [], tt = [];
+      for (let c = g.c1; c <= g.c2; c++) {
+        const key = keyOf(r, c);
+        rr.push(this.sheet.raw(key));
+        tt.push(tsvCell(formatValue(this.sheet.value(key))));
+      }
+      raws.push(rr); lines.push(tt.join('\t'));
+    }
+    const text = lines.join('\n');
+    e.clipboardData.setData('text/plain', text);
+    this.clip = { text, raws, origin: { r: g.r1, c: g.c1 }, cut, range: g };
+    this.marquee = true;
+    this.renderClip();
+  }
+  onPaste(e) {
+    if (this.editing || isTextInput(document.activeElement)) return;
+    e.preventDefault();
+    const text = (e.clipboardData.getData('text/plain') || '').replace(/\r\n?/g, '\n');
+    if (!text) return;
+    const g = this.range();
+    const internal = this.clip && text === this.clip.text;
+    let block;
+    if (internal) {
+      const dr = g.r1 - this.clip.origin.r, dc = g.c1 - this.clip.origin.c;
+      block = this.clip.raws.map((row) => row.map((raw) => shiftFormula(raw, dr, dc)));
+    } else block = parseTSV(text);
+
+    const entries = [];
+    if (internal && this.clip.cut) {
+      const s = this.clip.range;
+      for (let r = s.r1; r <= s.r2; r++) for (let c = s.c1; c <= s.c2; c++) entries.push([keyOf(r, c), '']);
+    }
+    let lastR = g.r1, lastC = g.c1;
+    for (let i = 0; i < block.length; i++) for (let j = 0; j < block[i].length; j++) {
+      const r = g.r1 + i, c = g.c1 + j;
+      if (!this.sheet.inBounds(r, c)) continue;
+      entries.push([keyOf(r, c), block[i][j]]);
+      lastR = Math.max(lastR, r); lastC = Math.max(lastC, c);
+    }
+    if (internal && this.clip.cut) { this.clip = null; this.marquee = false; }
+    this.sheet.setMany(entries);
+    this.selectRect(g.r1, g.c1, lastR, lastC);
+  }
+}
+
+/* ================================= DEMO =================================== */
+
+const sheet = new Sheet({ rows: CONFIG.rows, cols: CONFIG.cols });
+sheet.setMany([
+  // Tabela de itens (multiplicação entre células e somas de intervalo)
+  ['A1', 'Item'], ['B1', 'Qtd'], ['C1', 'Preço unit.'], ['D1', 'Subtotal'],
+  ['A2', 'Caneta'],   ['B2', '10'], ['C2', '2,5'],   ['D2', '=B2*C2'],
+  ['A3', 'Caderno'],  ['B3', '3'],  ['C3', '18,9'],  ['D3', '=B3*C3'],
+  ['A4', 'Mochila'],  ['B4', '1'],  ['C4', '129,9'], ['D4', '=B4*C4'],
+  ['A5', 'Régua'],    ['B5', '4'],  ['C5', '3,25'],  ['D5', '=B5*C5'],
+  ['A6', 'Total'],    ['B6', '=SUM(B2:B5)'], ['D6', '=SUM(D2:D5)'],
+  ['A7', 'Desconto 10%'], ['D7', '=D6*10%'],
+  ['A8', 'A pagar'],  ['D8', '=D6-D7'],
+  ['A9', 'Preço médio por item'], ['D9', '=D6/B6'],
+  // Quatro operações entre células (altere G2 ou G3 e veja tudo recalcular)
+  ['F1', 'Operações'],
+  ['F2', 'A'], ['G2', '12'],
+  ['F3', 'B'], ['G3', '4'],
+  ['F4', 'A + B'], ['G4', '=G2+G3'],
+  ['F5', 'A − B'], ['G5', '=G2-G3'],
+  ['F6', 'A × B'], ['G6', '=G2*G3'],
+  ['F7', 'A ÷ B'], ['G7', '=G2/G3'],
+  ['F8', 'A ^ B'], ['G8', '=G2^G3'],
+  ['F9', '(A+B)×2'], ['G9', '=(G2+G3)*2']
+]);
+const ui = new GridUI(sheet);
+
+// Ganchos para extensão/depuração no console
+window.Planilha = { sheet, ui, defineFunction, FUNCTIONS, BIN_OPS, BIN_PREC, CONFIG };
+</script>
+</body>
+</html>
