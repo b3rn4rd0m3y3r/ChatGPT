@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Xadrez</title>
+<style>
+:root{--bg:#eef1ee;--ink:#1d2a2a;--lt:#e3e9df;--dk:#7f9a8a;--sel:rgba(240,200,60,.65);--last:rgba(240,200,60,.35);--err:#a33a2c;--btn:#2f5d50;--btnt:#fff;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#131a19;--ink:#e6ece8;--lt:#5d7469;--dk:#37493f;--err:#ff8f7e;--btn:#8fc4b0;--btnt:#10211b;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#131a19;--ink:#e6ece8;--lt:#5d7469;--dk:#37493f;--err:#ff8f7e;--btn:#8fc4b0;--btnt:#10211b;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;display:flex;flex-direction:column;align-items:center;gap:14px;padding:20px 10px}
+h1{margin:0;font:600 2rem/1.1 "Iowan Old Style",Palatino,Georgia,serif}
+#msg{min-height:3em;margin:0;text-align:center;max-width:520px}
+#msg.err{color:var(--err);font-weight:600}
+#bd{--s:min(92vw,520px);width:var(--s);height:var(--s);display:grid;grid-template-columns:repeat(8,1fr);border:3px solid var(--ink);border-radius:4px;overflow:hidden;user-select:none;-webkit-user-select:none}
+.q{display:flex;align-items:center;justify-content:center;font-size:calc(var(--s)/8*.8);line-height:1;cursor:pointer;position:relative;background:var(--lt)}
+.q.d{background:var(--dk)}
+.q.last{box-shadow:inset 0 0 0 100px var(--last)}
+.q.sel{box-shadow:inset 0 0 0 100px var(--sel)}
+.q.chk{background:radial-gradient(circle,#e5483a 20%,transparent 75%),var(--lt)}
+.q.chk.d{background:radial-gradient(circle,#e5483a 20%,transparent 75%),var(--dk)}
+.q.mv::after{content:"";position:absolute;width:28%;height:28%;border-radius:50%;background:rgba(20,40,30,.4)}
+.q.cp::after{width:88%;height:88%;background:none;border:5px solid rgba(20,40,30,.4)}
+.w{color:#fff;text-shadow:0 0 2px #000,0 0 2px #000,0 0 3px #000}
+.b{color:#161616;text-shadow:0 0 1px rgba(255,255,255,.5)}
+button{font:600 1rem system-ui,sans-serif;padding:10px 22px;border:0;border-radius:6px;background:var(--btn);color:var(--btnt);cursor:pointer}
+button:focus-visible,.q:focus-visible{outline:3px solid var(--ink);outline-offset:-3px}
+</style>
+</head>
+<body>
+<h1>Xadrez</h1>
+<p id="msg" aria-live="polite"></p>
+<div id="bd" role="grid" aria-label="Tabuleiro de xadrez"></div>
+<button id="nw">Novo jogo</button>
+<script>
+const G={k:'♚',q:'♛',r:'♜',b:'♝',n:'♞',p:'♟'},V={p:100,n:320,b:330,r:500,q:900,k:0};
+const NM={p:'o peão',n:'o cavalo',b:'o bispo',r:'a torre',q:'a dama',k:'o rei'};
+const N=[[1,2],[2,1],[-1,2],[-2,1],[1,-2],[2,-1],[-1,-2],[-2,-1]];
+const K=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+const isW=c=>c===c.toUpperCase(), ok=(r,f)=>r>=0&&r<8&&f>=0&&f<8;
+const init=()=>({b:('rnbqkbnr'+'pppppppp'+'.'.repeat(32)+'PPPPPPPP'+'RNBQKBNR').split('').map(c=>c=='.'?'':c),t:'w',r:'KQkq',ep:-1});
+
+function att(b,sq,w){const r=sq>>3,f=sq&7,g=(y,x)=>ok(y,x)?b[y*8+x]:'',U=c=>w?c.toUpperCase():c;
+ const pr=w?r+1:r-1;for(const d of[-1,1])if(g(pr,f+d)==U('p'))return 1;
+ for(const[a,c]of N)if(g(r+a,f+c)==U('n'))return 1;
+ for(const[a,c]of K)if(g(r+a,f+c)==U('k'))return 1;
+ for(let i=0;i<8;i++){const[a,c]=K[i],rk=i<4?'r':'b';let y=r+a,x=f+c;
+  while(ok(y,x)){const p=b[y*8+x];if(p){if(p==U(rk)||p==U('q'))return 1;break}y+=a;x+=c}}
+ return 0}
+const inChk=(b,w)=>att(b,b.indexOf(w?'K':'k'),!w);
+
+function gen(s){const{b,t,ep}=s,w=t=='w',o=[],add=(f,to,x)=>o.push({f,t:to,...x});
+ for(let i=0;i<64;i++){const c=b[i];if(!c||isW(c)!=w)continue;const r=i>>3,f=i&7,k=c.toLowerCase();
+  if(k=='p'){const d=w?-1:1,n=r+d;
+   if(!b[n*8+f]){add(i,n*8+f);if(r==(w?6:1)&&!b[(n+d)*8+f])add(i,(n+d)*8+f,{dbl:1})}
+   for(const e of[-1,1]){if(!ok(n,f+e))continue;const q=n*8+f+e;
+    if(b[q]&&isW(b[q])!=w)add(i,q);else if(q==ep)add(i,q,{ep:1})}}
+  else if(k=='n'||k=='k'){for(const[a,e]of k=='n'?N:K)if(ok(r+a,f+e)){const q=(r+a)*8+f+e;if(!b[q]||isW(b[q])!=w)add(i,q)}}
+  else for(let j=k=='b'?4:0;j<(k=='r'?4:8);j++){const[a,e]=K[j];let y=r+a,x=f+e;
+   while(ok(y,x)){const q=y*8+x;if(!b[q])add(i,q);else{if(isW(b[q])!=w)add(i,q);break}y+=a;x+=e}}}
+ const h=w?60:4,R=w?'R':'r';
+ if(b[h]==(w?'K':'k')&&!att(b,h,!w)){
+  if(s.r.includes(w?'K':'k')&&!b[h+1]&&!b[h+2]&&b[h+3]==R&&!att(b,h+1,!w)&&!att(b,h+2,!w))add(h,h+2,{c:1});
+  if(s.r.includes(w?'Q':'q')&&!b[h-1]&&!b[h-2]&&!b[h-3]&&b[h-4]==R&&!att(b,h-1,!w)&&!att(b,h-2,!w))add(h,h-2,{c:1})}
+ return o}
+
+function app(s,m){const b=[...s.b],c=b[m.f],w=isW(c),k=c.toLowerCase();b[m.t]=c;b[m.f]='';
+ if(m.ep)b[(m.f>>3)*8+(m.t&7)]='';
+ if(k=='p'&&(m.t>>3)==(w?0:7))b[m.t]=w?'Q':'q';
+ if(m.c){const a=m.t>m.f,rf=a?m.f+3:m.f-4;b[a?m.f+1:m.f-1]=b[rf];b[rf]=''}
+ let r=s.r;if(k=='k')r=r.replace(w?/[KQ]/g:/[kq]/g,'');
+ for(const[sq,x]of[[63,'K'],[56,'Q'],[7,'k'],[0,'q']])if(m.f==sq||m.t==sq)r=r.replace(x,'');
+ return{b,t:w?'b':'w',r,ep:m.dbl?(m.f+m.t)/2:-1}}
+const legal=s=>gen(s).filter(m=>!inChk(app(s,m).b,s.t=='w'));
+
+function ev(b){let s=0;for(let i=0;i<64;i++){const c=b[i];if(!c)continue;
+ const w=isW(c),k=c.toLowerCase(),r=i>>3,f=i&7,d=Math.abs(2*r-7)+Math.abs(2*f-7);let v=V[k];
+ if(k=='n'||k=='b')v+=(14-d)*3;else if(k=='p')v+=(w?6-r:r-1)*8+(14-d);else if(k=='q')v+=14-d;
+ s+=w?v:-v}return s}
+const cv=(s,m)=>V[(s.b[m.t]||'x').toLowerCase()]||0;
+function sr(s,d,a,B,ply){if(!d)return ev(s.b)*(s.t=='w'?1:-1);
+ const ms=legal(s);if(!ms.length)return inChk(s.b,s.t=='w')?-99999+ply:0;
+ ms.sort((x,y)=>cv(s,y)-cv(s,x));
+ for(const m of ms){const v=-sr(app(s,m),d-1,-B,-a,ply+1);if(v>=B)return B;if(v>a)a=v}
+ return a}
+function best(s){let bm=null,bv=-1e9;const ms=legal(s).sort((x,y)=>cv(s,y)-cv(s,x));
+ for(const m of ms){const v=-sr(app(s,m),2,-1e9,1e9,1)+Math.random()*4;if(v>bv){bv=v;bm=m}}
+ return bm}
+
+let S,sel,lm,last,busy,over;
+const bd=document.getElementById('bd'),msg=document.getElementById('msg');
+const say=(t,e)=>{msg.textContent=t;msg.className=e?'err':''};
+function render(){const ck=inChk(S.b,S.t=='w')?S.b.indexOf(S.t=='w'?'K':'k'):-1;let h='';
+ for(let i=0;i<64;i++){const c=S.b[i],m=lm.find(x=>x.t==i);
+  const cl=['q',((i>>3)+(i&7))%2?'d':'',i==sel?'sel':'',last&&(i==last.f||i==last.t)?'last':'',i==ck?'chk':'',m?(c||m.ep?'mv cp':'mv'):''].join(' ');
+  h+=`<div class="${cl}" data-i="${i}" role="gridcell" tabindex="0">${c?`<span class="${isW(c)?'w':'b'}">${G[c.toLowerCase()]}\uFE0E</span>`:''}</div>`}
+ bd.innerHTML=h}
+function status(){const ms=legal(S),c=inChk(S.b,S.t=='w');
+ if(!ms.length){over=1;say(c?`Xeque-mate! ${S.t=='w'?'As pretas':'As brancas'} vencem.`:'Afogamento: empate.');return}
+ say(S.t=='w'?(c?'Xeque! Proteja seu rei.':'Sua vez (brancas).'):'O computador está pensando…')}
+function play(m){S=app(S,m);last=m;sel=-1;lm=[];render();status();
+ if(!over&&S.t=='b'){busy=1;setTimeout(()=>{const b=best(S);busy=0;play(b);if(!over&&inChk(S.b,true))say('Xeque! Proteja seu rei.')},50)}}
+function click(i){if(busy||over||S.t!='w')return;const c=S.b[i];
+ if(i==sel){sel=-1;lm=[];render();return}
+ if(c&&isW(c)){lm=legal(S).filter(m=>m.f==i);sel=i;render();
+  say(lm.length?'Escolha a casa de destino.':'Essa peça não tem movimentos legais agora.',!lm.length);return}
+ if(sel<0){say('Selecione primeiro uma peça sua.',1);return}
+ const m=lm.find(x=>x.t==i);if(m)return play(m);
+ const p=gen(S).some(x=>x.f==sel&&x.t==i),k=S.b[sel].toLowerCase();
+ say(p?(inChk(S.b,true)?'Movimento inválido: seu rei está em xeque e esse lance não resolve isso.':'Movimento inválido: isso deixaria seu rei em xeque.')
+  :`Movimento inválido: ${NM[k]} não se move assim.`,1)}
+function start(){S=init();sel=-1;lm=[];last=null;busy=0;over=0;render();say('Sua vez (brancas). Clique em uma peça para começar.')}
+bd.addEventListener('click',e=>{const q=e.target.closest('.q');if(q)click(+q.dataset.i)});
+bd.addEventListener('keydown',e=>{if(e.key=='Enter'||e.key==' '){const q=e.target.closest('.q');if(q){e.preventDefault();click(+q.dataset.i)}}});
+document.getElementById('nw').onclick=start;
+start();
+</script>
+</body>
+</html>
