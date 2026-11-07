@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Conversa</title>
+<link rel="stylesheet" href="css/estilo.css">
+</head>
+<body>
+<div class="topo-conversa">
+    <a href="grupos.html">&larr;</a>
+    <strong id="nome-grupo">Carregando...</strong>
+</div>
+<div class="painel-mensagens" id="painel-mensagens"></div>
+<form class="rodape-conversa" id="form-mensagem">
+    <input type="file" id="input-imagem" accept="image/png,image/jpeg,image/webp" style="display:none;">
+    <button type="button" class="secundario" style="width:auto;" onclick="document.getElementById('input-imagem').click();">Foto</button>
+    <input type="text" id="input-texto" placeholder="Digite uma mensagem" autocomplete="off">
+    <button type="submit">Enviar</button>
+</form>
+<script src="js/api.js"></script>
+<script src="js/mensagem.js"></script>
+<script src="js/conversa.js"></script>
+</body>
+</html>

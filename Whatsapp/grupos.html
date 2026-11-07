@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Grupos</title>
+<link rel="stylesheet" href="css/estilo.css">
+</head>
+<body>
+<div class="container">
+    <h1>Meus grupos <button class="secundario" style="width:auto;float:right;" onclick="sair()">Sair</button></h1>
+    <div id="erro-grupos" class="erro" style="display:none;"></div>
+    <ul class="lista-grupos" id="lista-grupos"></ul>
+
+    <div id="painel-admin" style="display:none;">
+        <hr>
+        <h1>Pedidos para entrar nos seus grupos</h1>
+        <ul class="lista-grupos" id="lista-pendentes"></ul>
+    </div>
+
+    <hr>
+    <h1>Outros grupos</h1>
+    <ul class="lista-grupos" id="lista-outros"></ul>
+
+    <hr>
+    <h1>Criar grupo</h1>
+    <form id="form-grupo">
+        <input type="text" id="nome-grupo" placeholder="Nome do grupo" required>
+        <button type="submit">Criar</button>
+    </form>
+</div>
+<script src="js/api.js"></script>
+<script src="js/grupos.js"></script>
+</body>
+</html>

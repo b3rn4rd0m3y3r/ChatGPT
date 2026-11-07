@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Entrar</title>
+<link rel="stylesheet" href="css/estilo.css">
+</head>
+<body>
+<div class="container">
+    <h1>Entrar</h1>
+    <div id="erro-login" class="erro" style="display:none;"></div>
+    <form id="form-login">
+        <input type="email" id="login-email" placeholder="E-mail" required>
+        <input type="password" id="login-senha" placeholder="Senha" required>
+        <button type="submit">Entrar</button>
+    </form>
+    <hr>
+    <h1>Criar conta</h1>
+    <div id="erro-cadastro" class="erro" style="display:none;"></div>
+    <form id="form-cadastro">
+        <input type="text" id="cad-nome" placeholder="Nome" required>
+        <input type="email" id="cad-email" placeholder="E-mail" required>
+        <input type="password" id="cad-senha" placeholder="Senha (mín. 8 caracteres)" required>
+        <button type="submit" class="secundario">Cadastrar</button>
+    </form>
+</div>
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+</body>
+</html>
