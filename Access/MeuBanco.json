@@ -1,0 +1,48 @@
+{
+  "format": "WebAccess",
+  "version": 1,
+  "databaseName": "MeuBanco",
+  "tables": [
+    {
+      "id": "tbl_1793888197225_7p18rh",
+      "name": "Fornecedores",
+      "fields": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "primaryKey": true
+        },
+        {
+          "name": "nome",
+          "type": "TEXT",
+          "primaryKey": false
+        },
+        {
+          "name": "telefone",
+          "type": "TEXT",
+          "primaryKey": false
+        }
+      ],
+      "records": [
+        {
+          "id": "rec_1793888217904_5umdkx",
+          "values": {
+            "id": 1,
+            "nome": "Bernardo",
+            "telefone": "33445566"
+          }
+        },
+        {
+          "id": "rec_1793888249354_w4lrzc",
+          "values": {
+            "id": 2,
+            "nome": "Garoupa de Souza",
+            "telefone": "33445577"
+          }
+        }
+      ]
+    }
+  ],
+  "relationships": [],
+  "savedAt": "2026-11-05T14:17:36.002Z"
+}

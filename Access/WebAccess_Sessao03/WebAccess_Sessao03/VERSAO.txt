@@ -1,0 +1,21 @@
+WEBACCESS
+Versão: 0.3.0
+Sessão: 03 — Gerenciamento de registros
+
+CONCLUÍDO
+- Preservado o construtor de tabelas da Sessão 02.
+- Grade HTML para visualizar registros.
+- Formulário dinâmico de inserção e edição.
+- Exclusão de registros com confirmação.
+- Validação básica dos tipos INTEGER, REAL, NUMERIC, DATE e BOOLEAN.
+- Geração automática de PK INTEGER quando o campo é deixado vazio.
+- Verificação de unicidade da chave primária.
+- Contagem de registros por tabela.
+
+LIMITAÇÕES
+- Dados ainda mantidos apenas em memória durante a sessão do navegador.
+- Sem persistência local, JSON ou SQL.js nesta versão.
+- Relacionamentos e integridade referencial ainda não implementados.
+
+PRÓXIMA ENTREGA
+Sessão 04 — relacionamentos entre tabelas e chaves estrangeiras.

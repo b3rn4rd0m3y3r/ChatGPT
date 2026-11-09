@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebAccess — Gerenciador de Banco de Dados</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">W</div>
+      <div><strong>WebAccess</strong><small>Gerenciador de Banco de Dados</small></div>
+    </div>
+    <div class="database-indicator">
+      <span class="status-dot"></span>
+      <span>Banco atual:</span>
+      <strong id="databaseName">MeuBanco</strong>
+    </div>
+    <div class="top-actions">
+      <button class="icon-button" id="renameDbBtn" title="Renomear banco" aria-label="Renomear banco">✎</button>
+      <button class="help-button" id="aboutBtn">Sobre</button>
+    </div>
+  </header>
+
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar-heading">ÁREA DE TRABALHO</div>
+      <button class="nav-item active" data-view="inicio"><span class="nav-icon">⌂</span> Visão geral</button>
+      <div class="nav-section">OBJETOS DO BANCO</div>
+      <button class="nav-item" data-view="tabelas"><span class="nav-icon">▦</span> Tabelas <span class="count" id="tableCount">0</span></button>
+      <button class="nav-item" data-view="consultas"><span class="nav-icon">⌕</span> Consultas SQL</button>
+      <button class="nav-item" data-view="relacionamentos"><span class="nav-icon">⌘</span> Relacionamentos</button>
+      <div class="sidebar-bottom">
+        <div class="sidebar-note">
+          <span class="note-icon">i</span>
+          <div><strong>Projeto em construção</strong><small>Esta é a versão da Sessão 01.</small></div>
+        </div>
+        <small class="version-label">WEBACCESS · VERSÃO 0.1.0</small>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <div class="page-heading">
+        <div>
+          <div class="eyebrow" id="eyebrow">ÁREA DE TRABALHO</div>
+          <h1 id="pageTitle">Visão geral</h1>
+          <p id="pageDescription">Bem-vindo ao seu ambiente de gerenciamento de dados.</p>
+        </div>
+        <div class="heading-actions" id="headingActions">
+          <button class="button button-primary" id="newTableBtn"><span>＋</span> Nova tabela</button>
+        </div>
+      </div>
+
+      <section id="view-inicio" class="view">
+        <div class="welcome-card">
+          <div class="welcome-copy">
+            <span class="welcome-tag">SEU AMBIENTE DE DADOS</span>
+            <h2>Organize seus dados.<br><em>Consulte suas informações.</em></h2>
+            <p>O WebAccess está sendo construído para oferecer, no navegador, os recursos essenciais de um gerenciador de banco de dados.</p>
+            <button class="button button-light" data-goto="tabelas">Explorar tabelas <span>→</span></button>
+          </div>
+          <div class="welcome-art" aria-hidden="true">
+            <div class="art-window">
+              <div class="art-window-bar"><i></i><i></i><i></i></div>
+              <div class="art-row art-head"><b></b><b></b><b></b></div>
+              <div class="art-row"><b></b><b></b><b></b></div>
+              <div class="art-row"><b></b><b></b><b></b></div>
+              <div class="art-row"><b></b><b></b><b></b></div>
+            </div>
+            <div class="art-chip">SQL <span>✓</span></div>
+            <div class="art-orbit"></div>
+          </div>
+        </div>
+
+        <div class="section-title-row"><div><h2>Resumo do banco</h2><p>Objetos disponíveis no banco atual.</p></div></div>
+        <div class="stats-grid">
+          <article class="stat-card"><div class="stat-icon purple">▦</div><div><span>Tabelas</span><strong id="statTables">0</strong><small>Estruturas de dados</small></div></article>
+          <article class="stat-card"><div class="stat-icon blue">⌕</div><div><span>Consultas SQL</span><strong>0</strong><small>Consultas salvas</small></div></article>
+          <article class="stat-card"><div class="stat-icon orange">⌘</div><div><span>Relacionamentos</span><strong>0</strong><small>Ligações entre tabelas</small></div></article>
+        </div>
+
+        <div class="section-title-row recent-heading"><div><h2>Próximos passos</h2><p>O desenvolvimento será feito progressivamente.</p></div></div>
+        <div class="steps-grid">
+          <div class="step-card"><span class="step-number">01</span><div><strong>Interface principal</strong><small>Concluída nesta sessão</small></div><span class="step-check">✓</span></div>
+          <div class="step-card"><span class="step-number">02</span><div><strong>Construção de tabelas</strong><small>Próxima implementação</small></div><span class="step-arrow">→</span></div>
+          <div class="step-card"><span class="step-number">03</span><div><strong>Entrada de registros</strong><small>Gerenciamento dos dados</small></div><span class="step-arrow">→</span></div>
+        </div>
+      </section>
+
+      <section id="view-tabelas" class="view hidden">
+        <div class="content-card">
+          <div class="card-toolbar"><div><h2>Minhas tabelas</h2><p>As tabelas do banco de dados aparecerão aqui.</p></div><button class="button button-primary" id="newTableBtn2">＋ Nova tabela</button></div>
+          <div class="empty-state" id="tablesEmpty"><div class="empty-illustration">▦</div><h3>Nenhuma tabela criada</h3><p>Na próxima etapa, construiremos o editor de tabelas, com definição de campos, tipos de dados e chave primária.</p><button class="button button-outline" id="createPlaceholderBtn">Criar primeira tabela (demonstração)</button></div>
+          <div id="tablesList" class="table-list hidden"></div>
+        </div>
+      </section>
+
+      <section id="view-consultas" class="view hidden">
+        <div class="feature-intro"><div class="feature-icon blue">⌕</div><div><h2>Consultas SQL</h2><p>O espaço de edição e execução SQL será implementado em uma sessão própria, utilizando o motor SQLite via SQL.js.</p></div></div>
+        <div class="content-card preview-card"><span class="preview-label">PRÉVIA DO EDITOR</span><div class="fake-editor"><div class="editor-gutter">1<br>2<br>3</div><pre><span class="sql-keyword">SELECT</span> *<br><span class="sql-keyword">FROM</span> clientes<br><span class="sql-keyword">WHERE</span> ativo = 1;</pre></div><div class="preview-footer"><span>Editor demonstrativo — ainda não executa comandos.</span><span class="coming-soon">EM DESENVOLVIMENTO</span></div></div>
+      </section>
+
+      <section id="view-relacionamentos" class="view hidden">
+        <div class="feature-intro"><div class="feature-icon orange">⌘</div><div><h2>Relacionamentos</h2><p>Visualize e configure as ligações entre tabelas, incluindo chaves primárias e estrangeiras.</p></div></div>
+        <div class="content-card relationship-preview"><div class="relation-box"><span>▦</span><strong>clientes</strong><small>id · nome · email</small></div><div class="relation-line"><span>1</span><i></i><span>N</span></div><div class="relation-box"><span>▦</span><strong>pedidos</strong><small>id · cliente_id · data</small></div><p>Exemplo ilustrativo de relacionamento 1:N. A configuração funcional será implementada posteriormente.</p></div>
+      </section>
+
+      <footer class="workspace-footer"><span>WebAccess · Projeto educacional</span><span>HTML · CSS · JavaScript</span></footer>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <dialog id="aboutDialog" class="modal">
+    <div class="modal-top"><div class="brand-mark small-mark">W</div><button class="modal-close" id="closeAbout" aria-label="Fechar">×</button></div>
+    <h2>Sobre o WebAccess</h2>
+    <p>Um gerenciador de banco de dados didático, desenvolvido com HTML, CSS e JavaScript, inspirado no fluxo de trabalho do Microsoft Access.</p>
+    <div class="about-meta"><span>Versão</span><strong>0.1.0 — Sessão 01</strong><span>Estado</span><strong>Interface inicial</strong></div>
+    <button class="button button-primary modal-ok" id="okAbout">Entendi</button>
+  </dialog>
+  <script src="js/app.js"></script>
+</body>
+</html>

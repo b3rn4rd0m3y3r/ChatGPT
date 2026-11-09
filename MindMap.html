@@ -1042,7 +1042,36 @@ function resetStyle() {
 
 let dragData = null;
 
+
 function startNodeDrag(event) {
+    // O botão de recolher/expandir não deve iniciar arraste.
+    if (event.target.closest(".collapse-toggle")) {
+        return;
+    }
+
+    if (event.button !== 0) return;
+
+    const element = event.currentTarget;
+    const id = Number(element.dataset.id);
+
+    // Não redesenhar o mapa neste momento.
+    // Isso evita destruir o elemento durante o pointerdown.
+    selectedId = id;
+
+    dragData = {
+        id,
+        startX: event.clientX,
+        startY: event.clientY,
+        moved: false,
+        target: null
+    };
+
+    document.addEventListener("pointermove", moveNodeDrag);
+    document.addEventListener("pointerup", endNodeDrag, { once: true });
+}
+
+
+function startNodeDrag1(event) {
     if (event.button !== 0) return;
 
     const element = event.currentTarget;

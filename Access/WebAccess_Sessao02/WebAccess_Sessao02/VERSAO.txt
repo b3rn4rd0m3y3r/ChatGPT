@@ -1,0 +1,22 @@
+WEBACCESS
+Versão: 0.2.0
+Sessão: 02 — Construtor de tabelas
+
+CONCLUÍDO
+- Mantida a interface principal da Sessão 01.
+- Criar tabelas com nome.
+- Adicionar/remover campos.
+- Tipos: INTEGER, TEXT, REAL, NUMERIC, DATE e BOOLEAN.
+- Definir no máximo uma chave primária por tabela.
+- Editar estrutura de tabela.
+- Excluir tabela com confirmação.
+- Validar nomes e campos duplicados.
+- Exibir estruturas na lista de tabelas.
+
+LIMITAÇÕES CONHECIDAS
+- Metadados em memória; não persistem após recarregar a página.
+- SQL.js ainda não integrado; tabelas ainda não são objetos físicos SQLite.
+- Não há entrada de registros nesta versão.
+
+PRÓXIMA ENTREGA
+Sessão 03 — gerenciamento de registros.

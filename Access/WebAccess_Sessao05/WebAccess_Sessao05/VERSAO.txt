@@ -1,0 +1,18 @@
+WEBACCESS
+Versão: 0.5.0
+Sessão: 05 — Persistência local e backups JSON
+
+CONCLUÍDO
+- Armazenamento automático dos dados usando IndexedDB do navegador.
+- Recuperação automática do banco ao abrir novamente o aplicativo.
+- Indicador visual do estado do armazenamento.
+- Exportação do banco completo para arquivo JSON.
+- Importação de backup JSON com validação antes de substituir os dados atuais.
+- Preservação das funcionalidades de tabelas, registros e relacionamentos 1:N da Sessão 04.
+
+OBSERVAÇÕES
+- A persistência fica no perfil do navegador e no computador em que o WebAccess é utilizado.
+- Limpar os dados do site/navegador pode apagar o armazenamento local; mantenha backups JSON.
+- A exportação JSON é recomendada para transportar o banco entre computadores ou navegadores.
+- O aplicativo ainda não utiliza um arquivo SQLite real; IndexedDB é o armazenamento desta etapa.
+- A integridade referencial continua sendo validada pelo JavaScript.

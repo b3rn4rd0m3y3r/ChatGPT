@@ -1,0 +1,22 @@
+WEBACCESS
+Versão: 0.4.0
+Sessão: 04 — Relacionamentos e integridade referencial
+
+CONCLUÍDO
+- Criação e exclusão de relacionamentos 1:N.
+- Seleção da tabela principal e respectiva PK.
+- Seleção da tabela relacionada e do campo FK.
+- Validação de compatibilidade dos tipos de dados.
+- Campo FK exibido como lista de registros válidos no formulário.
+- Validação da existência da chave referenciada ao inserir/editar.
+- Bloqueio da exclusão de registros principais ainda referenciados.
+- Proteção contra remoção de campos que participam de relacionamentos.
+- Remoção dos relacionamentos associados ao excluir uma tabela.
+
+LIMITAÇÕES
+- Dados mantidos somente em memória.
+- Integridade referencial ainda aplicada pelo JavaScript, não pelo SQLite.
+- Sem persistência JSON/IndexedDB ou motor SQL nesta versão.
+
+PRÓXIMA ENTREGA
+Sessão 05 — persistência local e importação/exportação JSON.

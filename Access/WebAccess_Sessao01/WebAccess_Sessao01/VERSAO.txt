@@ -1,0 +1,19 @@
+WEBACCESS
+Versão: 0.1.0
+Sessão: 01 — Estrutura principal e interface
+
+CONCLUÍDO
+- Interface principal em HTML/CSS/JavaScript.
+- Menu lateral com navegação entre quatro áreas.
+- Identificação e renomeação temporária do banco.
+- Resumo de objetos.
+- Telas iniciais de Tabelas, Consultas SQL e Relacionamentos.
+- Janela Sobre e mensagens de interação.
+
+LIMITAÇÕES CONHECIDAS
+- Nenhuma estrutura ou registro é persistido.
+- A inclusão de tabela é demonstrativa.
+- SQL.js ainda não foi integrado.
+
+PRÓXIMA ENTREGA
+Sessão 02 — construtor funcional de tabelas.
