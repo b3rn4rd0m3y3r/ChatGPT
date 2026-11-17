@@ -1,12 +1,14 @@
-// WebAccess — Sessão 05: persistência local e gerenciamento de registros
+// WebAccess — Sessão 10: Formulários e Relatórios
 "use strict";
 
 const pages = {
   inicio: { title: "Visão geral", eyebrow: "ÁREA DE TRABALHO", description: "Bem-vindo ao seu ambiente de gerenciamento de dados." },
   tabelas: { title: "Tabelas", eyebrow: "OBJETOS DO BANCO", description: "Crie tabelas e gerencie os registros armazenados." },
-  consultas: { title: "Consultas SQL", eyebrow: "OBJETOS DO BANCO", description: "Escreva e execute instruções SQL sobre seu banco de dados." },
+  consultas: { title: "Consultas SQL", eyebrow: "OBJETOS DO BANCO", description: "Consulte e altere os dados usando instruções SQL." },
   relacionamentos: { title: "Relacionamentos", eyebrow: "OBJETOS DO BANCO", description: "Defina como as tabelas se relacionam entre si." },
-  registros: { title: "Registros", eyebrow: "DADOS DA TABELA", description: "Visualize e gerencie os registros desta tabela." }
+  registros: { title: "Registros", eyebrow: "DADOS DA TABELA", description: "Visualize e gerencie os registros desta tabela." },
+  formularios: { title: "Formulários", eyebrow: "ENTRADA DE DADOS", description: "Cadastre, consulte, edite e exclua registros por formulários." },
+  relatorios: { title: "Relatórios", eyebrow: "APRESENTAÇÃO DE DADOS", description: "Selecione campos, filtre registros e gere relatórios para impressão ou CSV." }
 };
 
 const DATA_TYPES = ["INTEGER", "TEXT", "REAL", "NUMERIC", "DATE", "BOOLEAN"];
@@ -14,6 +16,10 @@ const $ = selector => document.querySelector(selector);
 let databaseName = "MeuBanco";
 let tables = [];
 let relationships = [];
+let savedQueries = [];
+let savedReports = [];
+let reportRows = [];
+let reportColumns = [];
 let editingRelationshipId = null;
 let editingTableId = null;
 let activeRecordTableId = null;
@@ -55,6 +61,7 @@ function updateTableCounters() {
   $("#tableCount").textContent = count;
   $("#statTables").textContent = count;
   $("#statRelationships").textContent = relationships.length;
+  if ($("#statSavedQueries")) $("#statSavedQueries").textContent = savedQueries.length;
   $("#tablesEmpty").classList.toggle("hidden", count > 0);
   $("#tablesList").classList.toggle("hidden", count === 0);
   renderTables();
@@ -264,6 +271,7 @@ function saveTable(event) {
   }
   closeTableEditor();
   updateTableCounters();
+  WebAccessPersistence.scheduleSave(); refreshFormTableOptions(); refreshReportTableOptions();
 }
 
 function createId(prefix = "id") {
@@ -279,6 +287,7 @@ function deleteTable(tableId) {
   tables = tables.filter(item => item.id !== tableId);
   relationships = relationships.filter(rel => rel.parentTableId !== tableId && rel.childTableId !== tableId);
   updateTableCounters();
+  WebAccessPersistence.scheduleSave(); refreshFormTableOptions(); refreshReportTableOptions();
   showToast(`Tabela "${table.name}" excluída.`);
 }
 
@@ -536,6 +545,9 @@ function saveRecord(event) {
     closeRecordEditor();
     renderRecordsView();
     updateTableCounters();
+    WebAccessPersistence.scheduleSave();
+    if (!$("#view-formularios").classList.contains("hidden")) renderFormBrowser();
+    if (!$("#view-relatorios").classList.contains("hidden")) renderReportPreview();
   } catch (error) {
     showToast(error.message);
   }
@@ -561,8 +573,251 @@ function deleteRecord(recordId) {
   table.records = table.records.filter(item => item.id !== recordId);
   renderRecordsView();
   updateTableCounters();
+  WebAccessPersistence.scheduleSave();
+  if (!$("#view-formularios").classList.contains("hidden")) renderFormBrowser();
   showToast("Registro excluído.");
 }
+
+// ---------- Formulários e relatórios — Sessão 10 ----------
+function refreshFormTableOptions() {
+  const select = $("#formTableSelect");
+  const previous = select.value;
+  select.replaceChildren(new Option("Selecione uma tabela", ""));
+  tables.forEach(table => select.add(new Option(table.name, table.id)));
+  select.value = tables.some(table => table.id === previous) ? previous : "";
+  renderFormBrowser();
+}
+
+function renderFormBrowser() {
+  const table = tables.find(item => item.id === $("#formTableSelect").value);
+  const empty = $("#formBrowserEmpty"), content = $("#formBrowserContent");
+  const add = $("#formNewRecordBtn");
+  if (!table) {
+    empty.classList.remove("hidden"); content.classList.add("hidden"); add.disabled = true; return;
+  }
+  empty.classList.add("hidden"); content.classList.remove("hidden"); add.disabled = false;
+  $("#formBrowserSummary").textContent = `${table.name} · ${table.fields.length} campo(s) · ${table.records.length} registro(s)`;
+  const head = $("#formBrowserHeader"), body = $("#formBrowserBody");
+  head.replaceChildren(); body.replaceChildren();
+  table.fields.forEach(field => { const th = document.createElement("th"); th.textContent = field.name + (field.primaryKey ? " 🔑" : ""); head.append(th); });
+  const actionHead = document.createElement("th"); actionHead.textContent = "Ações"; head.append(actionHead);
+  table.records.forEach(record => {
+    const tr = document.createElement("tr");
+    table.fields.forEach(field => { const td = document.createElement("td"); td.textContent = formatCell(record.values[field.name], field.type); tr.append(td); });
+    const actions = document.createElement("td"); actions.className = "row-actions";
+    const edit = document.createElement("button"); edit.type = "button"; edit.className = "text-action"; edit.textContent = "Editar";
+    edit.addEventListener("click", () => { activeRecordTableId = table.id; openRecordEditor(record.id); });
+    const remove = document.createElement("button"); remove.type = "button"; remove.className = "text-action danger"; remove.textContent = "Excluir";
+    remove.addEventListener("click", () => { activeRecordTableId = table.id; deleteRecord(record.id); });
+    actions.append(edit, remove); tr.append(actions); body.append(tr);
+  });
+  $("#formNoRecords").classList.toggle("hidden", table.records.length > 0);
+}
+
+function refreshReportTableOptions() {
+  const select = $("#reportTableSelect"), previous = select.value;
+  select.replaceChildren(new Option("Selecione uma tabela", ""));
+  tables.forEach(table => select.add(new Option(table.name, table.id)));
+  select.value = tables.some(table => table.id === previous) ? previous : "";
+  renderReportFields();
+}
+
+function renderReportFields(selectedNames = null) {
+  const table = tables.find(item => item.id === $("#reportTableSelect").value);
+  const target = $("#reportFields"); target.replaceChildren();
+  if (!table) { const empty = document.createElement("div"); empty.className = "sql-empty"; empty.textContent = "Selecione uma tabela para listar seus campos."; target.append(empty); updateReportButtons(false); return; }
+  table.fields.forEach(field => {
+    const label = document.createElement("label"); label.className = "report-field-check";
+    const checkbox = document.createElement("input"); checkbox.type = "checkbox"; checkbox.value = field.name;
+    checkbox.checked = selectedNames ? selectedNames.includes(field.name) : true;
+    checkbox.addEventListener("change", renderReportPreview);
+    const text = document.createElement("span"); text.textContent = `${field.name}${field.primaryKey ? " (PK)" : ""} · ${field.type}`;
+    label.append(checkbox, text); target.append(label);
+  });
+  renderReportPreview();
+}
+
+function selectedReportFields() { return [...$("#reportFields").querySelectorAll('input[type="checkbox"]:checked')].map(input => input.value); }
+function updateReportButtons(enabled) {
+  ["#saveReportBtn", "#exportReportBtn", "#printReportBtn"].forEach(selector => $(selector).disabled = !enabled);
+}
+
+function renderReportPreview() {
+  const table = tables.find(item => item.id === $("#reportTableSelect").value);
+  const target = $("#reportPreview"), title = $("#reportPreviewTitle"), meta = $("#reportPreviewMeta");
+  target.replaceChildren(); reportRows = []; reportColumns = [];
+  if (!table) { target.innerHTML = '<div class="sql-empty">Nenhum relatório gerado.</div>'; title.textContent = "Prévia do relatório"; meta.textContent = "O resultado aparecerá aqui após selecionar uma tabela."; updateReportButtons(false); return; }
+  const columns = selectedReportFields();
+  if (!columns.length) { target.innerHTML = '<div class="sql-empty">Marque pelo menos um campo para montar o relatório.</div>'; meta.textContent = "Nenhum campo selecionado."; updateReportButtons(false); return; }
+  const term = $("#reportFilterInput").value.trim().toLocaleLowerCase();
+  const rows = table.records.filter(record => !term || columns.some(name => String(record.values[name] ?? "").toLocaleLowerCase().includes(term)));
+  reportColumns = columns; reportRows = rows.map(record => columns.map(name => record.values[name] ?? null));
+  title.textContent = `Relatório — ${table.name}`;
+  meta.textContent = `${rows.length} de ${table.records.length} registro(s) · ${columns.length} campo(s)`;
+  const htmlTable = document.createElement("table"); htmlTable.className = "records-table report-table";
+  const thead = document.createElement("thead"), headRow = document.createElement("tr");
+  columns.forEach(name => { const th = document.createElement("th"); th.textContent = name; headRow.append(th); }); thead.append(headRow);
+  const tbody = document.createElement("tbody");
+  rows.forEach(record => { const tr = document.createElement("tr"); columns.forEach(name => { const td = document.createElement("td"); const field = table.fields.find(item => item.name === name); td.textContent = formatCell(record.values[name], field?.type); tr.append(td); }); tbody.append(tr); });
+  htmlTable.append(thead, tbody); target.append(htmlTable); updateReportButtons(true);
+}
+
+function saveCurrentReport() {
+  const table = tables.find(item => item.id === $("#reportTableSelect").value);
+  const name = $("#reportNameInput").value.trim(), fields = selectedReportFields();
+  if (!table) return showToast("Selecione uma tabela para o relatório.");
+  if (!name) return showToast("Informe um nome para salvar o relatório.");
+  if (!fields.length) return showToast("Selecione pelo menos um campo.");
+  if (savedReports.some(report => report.name.toLocaleLowerCase() === name.toLocaleLowerCase())) return showToast("Já existe um relatório com esse nome.");
+  savedReports.push({ id: createId("rpt"), name, tableId: table.id, fields, filter: $("#reportFilterInput").value.trim(), createdAt: new Date().toISOString() });
+  $("#reportNameInput").value = ""; renderSavedReports();
+  WebAccessPersistence.saveNow().then(() => showToast("Definição do relatório salva.")).catch(error => showToast("Erro ao salvar relatório: " + error.message));
+}
+
+function renderSavedReports() {
+  const list = $("#savedReportsList"), empty = $("#savedReportsEmpty"); list.replaceChildren();
+  empty.classList.toggle("hidden", savedReports.length > 0); list.classList.toggle("hidden", savedReports.length === 0);
+  savedReports.forEach(report => {
+    const item = document.createElement("div"); item.className = "saved-report-item";
+    const details = document.createElement("div"); details.className = "saved-query-details";
+    const name = document.createElement("strong"); name.textContent = report.name;
+    const table = tables.find(row => row.id === report.tableId);
+    const info = document.createElement("small"); info.textContent = `${table?.name || "Tabela indisponível"} · ${(report.fields || []).join(", ")}`; details.append(name, info);
+    const actions = document.createElement("div"); actions.className = "saved-query-actions";
+    const load = document.createElement("button"); load.type = "button"; load.className = "button button-outline button-small"; load.textContent = "Carregar";
+    load.addEventListener("click", () => {
+      if (!table) return showToast("A tabela deste relatório não existe mais.");
+      $("#reportTableSelect").value = table.id; $("#reportFilterInput").value = report.filter || ""; $("#reportNameInput").value = report.name; renderReportFields(report.fields || []); showToast("Definição carregada.");
+    });
+    const remove = document.createElement("button"); remove.type = "button"; remove.className = "button button-danger button-small"; remove.textContent = "Excluir";
+    remove.addEventListener("click", async () => { if (!confirm(`Excluir o relatório "${report.name}"?`)) return; savedReports = savedReports.filter(item => item.id !== report.id); renderSavedReports(); try { await WebAccessPersistence.saveNow(); showToast("Relatório excluído."); } catch (error) { showToast("Erro ao salvar exclusão: " + error.message); } });
+    actions.append(load, remove); item.append(details, actions); list.append(item);
+  });
+}
+
+function exportReportCsv() {
+  if (!reportColumns.length) return;
+  const escapeCsv = value => '"' + String(value ?? "").replace(/"/g, '""') + '"';
+  const lines = [reportColumns.map(escapeCsv).join(";"), ...reportRows.map(row => row.map(escapeCsv).join(";"))];
+  const blob = new Blob(["\uFEFF" + lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob), link = document.createElement("a");
+  const table = tables.find(item => item.id === $("#reportTableSelect").value);
+  link.href = url; link.download = `relatorio_${(table?.name || "dados").replace(/[^a-z0-9_-]/gi, "_")}.csv`;
+  document.body.append(link); link.click(); link.remove(); URL.revokeObjectURL(url);
+}
+
+function printReport() { if (!reportColumns.length) return; window.print(); }
+
+// Editor SQL e gerenciamento da estrutura — Sessões 07 e 08
+function renderSavedQueries() {
+  const list = $("#savedQueriesList");
+  const empty = $("#savedQueriesEmpty");
+  if (!list || !empty) return;
+  list.replaceChildren();
+  empty.classList.toggle("hidden", savedQueries.length > 0);
+  list.classList.toggle("hidden", savedQueries.length === 0);
+  savedQueries.forEach(query => {
+    const item = document.createElement("article");
+    item.className = "saved-query-item";
+    const details = document.createElement("div");
+    details.className = "saved-query-details";
+    const title = document.createElement("strong");
+    title.textContent = query.name;
+    const preview = document.createElement("code");
+    preview.textContent = query.sql.replace(/\s+/g, " ").trim();
+    details.append(title, preview);
+    const actions = document.createElement("div");
+    actions.className = "saved-query-actions";
+    const load = document.createElement("button");
+    load.type = "button"; load.className = "button button-outline button-small"; load.textContent = "Carregar";
+    load.addEventListener("click", () => { $("#sqlEditor").value = query.sql; $("#sqlEditor").focus(); showToast("Consulta carregada no editor."); });
+    const run = document.createElement("button");
+    run.type = "button"; run.className = "button button-primary button-small"; run.textContent = "Executar";
+    run.addEventListener("click", async () => { $("#sqlEditor").value = query.sql; await runSqlEditor(); });
+    const remove = document.createElement("button");
+    remove.type = "button"; remove.className = "button button-danger button-small"; remove.textContent = "Excluir";
+    remove.addEventListener("click", async () => {
+      if (!confirm(`Excluir a consulta "${query.name}"?`)) return;
+      savedQueries = savedQueries.filter(item => item.id !== query.id);
+      renderSavedQueries();
+      try { await WebAccessPersistence.saveNow(); showToast("Consulta excluída."); }
+      catch (error) { showToast("Não foi possível salvar a exclusão: " + error.message); }
+    });
+    actions.append(load, run, remove);
+    item.append(details, actions);
+    list.append(item);
+  });
+}
+
+function saveCurrentQuery() {
+  const name = $("#savedQueryName").value.trim();
+  const sql = $("#sqlEditor").value.trim();
+  if (!name) return showToast("Informe um nome para a consulta.");
+  const normalized = sql.replace(/^(?:\s|--[^\n]*\n|\/\*[\s\S]*?\*\/)+/g, "").trim();
+  if (!/^SELECT\b/i.test(normalized)) return showToast("Somente instruções SELECT podem ser salvas nesta etapa.");
+  if (sql.includes(";") && sql.slice(sql.indexOf(";") + 1).trim()) return showToast("Salve apenas uma instrução SQL por consulta.");
+  if (savedQueries.some(query => query.name.toLocaleLowerCase() === name.toLocaleLowerCase())) return showToast("Já existe uma consulta com esse nome.");
+  savedQueries.push({ id: `qry_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, name, sql, createdAt: new Date().toISOString() });
+  $("#savedQueryName").value = "";
+  renderSavedQueries();
+  WebAccessPersistence.saveNow().then(() => showToast("Consulta salva no banco e no backup JSON.")).catch(error => showToast("Erro ao salvar consulta: " + error.message));
+}
+
+function renderSqlResults(results) {
+  const target = $("#sqlResult");
+  target.replaceChildren();
+  if (!results || !results.length) {
+    target.innerHTML = '<div class="sql-empty">A consulta não retornou uma grade de resultados.</div>';
+    return;
+  }
+  const result = results[0];
+  const table = document.createElement('table');
+  const thead = document.createElement('thead');
+  const headRow = document.createElement('tr');
+  result.columns.forEach(column => { const th = document.createElement('th'); th.textContent = column; headRow.append(th); });
+  thead.append(headRow);
+  const tbody = document.createElement('tbody');
+  result.values.forEach(row => {
+    const tr = document.createElement('tr');
+    row.forEach(value => { const td = document.createElement('td'); td.textContent = value === null ? 'NULL' : String(value); td.title = td.textContent; tr.append(td); });
+    tbody.append(tr);
+  });
+  table.append(thead, tbody); target.append(table);
+}
+
+async function runSqlEditor() {
+  const button = $("#runSqlBtn");
+  const meta = $("#sqlResultMeta");
+  button.disabled = true; button.textContent = 'Executando...';
+  try {
+    const result = await WebAccessSQLite.execute(
+      $("#sqlEditor").value,
+      () => ({ format: 'WebAccess', version: 1, databaseName, tables, relationships, savedQueries, savedReports, savedAt: new Date().toISOString() }),
+      data => { databaseName = data.databaseName; tables = data.tables; relationships = data.relationships; savedQueries = Array.isArray(data.savedQueries) ? data.savedQueries : []; savedReports = Array.isArray(data.savedReports) ? data.savedReports : []; updateDatabaseName(); updateTableCounters(); renderSavedQueries(); renderSavedReports(); refreshFormTableOptions(); refreshReportTableOptions(); },
+      () => WebAccessPersistence.saveNow()
+    );
+    if (result.command === 'SELECT') {
+      renderSqlResults(result.results);
+      const count = result.results[0]?.values.length ?? 0;
+      meta.textContent = `${count} registro(s) retornado(s).`;
+    } else {
+      $("#sqlResult").innerHTML = `<div class="sql-success">Comando ${result.command} executado. ${result.changed} registro(s) afetado(s). Alterações salvas no navegador.</div>`;
+      meta.textContent = 'Execução concluída e persistida.';
+    }
+  } catch (error) {
+    $("#sqlResult").innerHTML = '';
+    const message = document.createElement('div'); message.className = 'sql-error'; message.textContent = error.message || String(error); $("#sqlResult").append(message);
+    meta.textContent = 'A execução apresentou um erro.';
+  } finally {
+    button.disabled = false; button.textContent = '▶ Executar SQL';
+  }
+}
+
+$("#runSqlBtn").addEventListener('click', runSqlEditor);
+$("#saveQueryBtn").addEventListener('click', saveCurrentQuery);
+$("#clearSqlBtn").addEventListener('click', () => { $("#sqlEditor").value = ''; $("#sqlResult").innerHTML = '<div class="sql-empty">O resultado da execução aparecerá aqui.</div>'; $("#sqlResultMeta").textContent = 'Editor limpo.'; });
+document.querySelectorAll('[data-sql]').forEach(button => button.addEventListener('click', () => { $("#sqlEditor").value = button.dataset.sql; $("#sqlEditor").focus(); }));
+$("#sqlEditor").addEventListener('keydown', event => { if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); runSqlEditor(); } });
 
 // Navegação e ações gerais
 document.querySelectorAll(".nav-item").forEach(button =>
@@ -780,6 +1035,15 @@ $("#relationshipForm").addEventListener("submit", saveRelationship);
 $("#closeRelationshipDialog").addEventListener("click", closeRelationshipEditor);
 $("#cancelRelationshipBtn").addEventListener("click", closeRelationshipEditor);
 
+// Eventos da Sessão 10 — Formulários e Relatórios.
+$("#formTableSelect").addEventListener("change", () => { activeRecordTableId = $("#formTableSelect").value || null; renderFormBrowser(); });
+$("#formNewRecordBtn").addEventListener("click", () => { activeRecordTableId = $("#formTableSelect").value; openRecordEditor(); });
+$("#reportTableSelect").addEventListener("change", () => renderReportFields());
+$("#reportFilterInput").addEventListener("input", renderReportPreview);
+$("#saveReportBtn").addEventListener("click", saveCurrentReport);
+$("#exportReportBtn").addEventListener("click", exportReportCsv);
+$("#printReportBtn").addEventListener("click", printReport);
+
 // Exportação e importação de backups JSON.
 $("#exportDbBtn").addEventListener("click", () => {
   try {
@@ -816,19 +1080,48 @@ async function startWebAccess() {
         databaseName,
         tables,
         relationships,
+        savedQueries,
+        savedReports,
         savedAt: new Date().toISOString()
       }),
       applySnapshot: data => {
         databaseName = data.databaseName || "MeuBanco";
         tables = data.tables;
         relationships = data.relationships;
+        savedQueries = Array.isArray(data.savedQueries) ? data.savedQueries : []; savedReports = Array.isArray(data.savedReports) ? data.savedReports : [];
       },
       afterRestore: () => {
         updateDatabaseName();
         updateTableCounters();
+        renderSavedQueries();
+        renderSavedReports(); refreshFormTableOptions(); refreshReportTableOptions();
       }
     });
     console.log("WebAccess iniciado com persistência local.");
+    try {
+      await WebAccessSQLite.initialize(() => ({
+        format: "WebAccess",
+        version: 1,
+        databaseName,
+        tables,
+        relationships,
+        savedQueries,
+        savedReports,
+        savedAt: new Date().toISOString()
+      }), data => {
+        databaseName = data.databaseName || databaseName;
+        tables = data.tables;
+        relationships = data.relationships;
+        savedQueries = Array.isArray(data.savedQueries) ? data.savedQueries : []; savedReports = Array.isArray(data.savedReports) ? data.savedReports : [];
+        updateDatabaseName();
+        updateTableCounters();
+        renderSavedQueries();
+        renderSavedReports(); refreshFormTableOptions(); refreshReportTableOptions();
+      });
+    } catch (sqliteError) {
+      console.error("Falha ao inicializar o mecanismo SQLite:", sqliteError);
+      showToast("O banco foi recuperado, mas o mecanismo SQLite não iniciou. Consulte o console.");
+    }
   } catch (error) {
     console.error("Falha na inicialização do WebAccess:", error);
     const status = $("#storageStatus");

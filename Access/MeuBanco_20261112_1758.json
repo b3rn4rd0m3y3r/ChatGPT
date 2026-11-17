@@ -1,0 +1,160 @@
+{
+  "format": "WebAccess",
+  "version": 1,
+  "databaseName": "MeuBanco",
+  "tables": [
+    {
+      "id": "tbl_1793888197225_7p18rh",
+      "name": "Fornecedores",
+      "fields": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "primaryKey": true
+        },
+        {
+          "name": "nome",
+          "type": "TEXT",
+          "primaryKey": false
+        },
+        {
+          "name": "telefone",
+          "type": "TEXT",
+          "primaryKey": false
+        }
+      ],
+      "records": [
+        {
+          "id": "rec_1793888217904_5umdkx",
+          "values": {
+            "id": 1,
+            "nome": "Bernardo",
+            "telefone": "33445566"
+          }
+        },
+        {
+          "id": "rec_1793888249354_w4lrzc",
+          "values": {
+            "id": 2,
+            "nome": "Garoupa de Souza",
+            "telefone": "33445577"
+          }
+        },
+        {
+          "id": "sql_1794427644607_2_7wx18v",
+          "values": {
+            "id": 3,
+            "nome": "Leonardo",
+            "telefone": "33225544"
+          }
+        }
+      ]
+    },
+    {
+      "id": "tbl_1794321339984_ai05l5",
+      "name": "Pedidos",
+      "fields": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "primaryKey": true
+        },
+        {
+          "name": "IdFornec",
+          "type": "INTEGER",
+          "primaryKey": false
+        },
+        {
+          "name": "DtPedido",
+          "type": "DATE",
+          "primaryKey": false
+        }
+      ],
+      "records": []
+    },
+    {
+      "id": "tbl_1794516618268_6pg8hd",
+      "name": "Pedidos_Itens",
+      "fields": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "primaryKey": true
+        },
+        {
+          "name": "idPedido",
+          "type": "INTEGER",
+          "primaryKey": false
+        },
+        {
+          "name": "idItem",
+          "type": "INTEGER",
+          "primaryKey": false
+        }
+      ],
+      "records": []
+    },
+    {
+      "id": "tbl_1794516733142_rgl24c",
+      "name": "Itens",
+      "fields": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "primaryKey": true
+        },
+        {
+          "name": "idFornec",
+          "type": "INTEGER",
+          "primaryKey": false
+        },
+        {
+          "name": "descri",
+          "type": "TEXT",
+          "primaryKey": false
+        },
+        {
+          "name": "vrItem",
+          "type": "REAL",
+          "primaryKey": false
+        }
+      ],
+      "records": []
+    }
+  ],
+  "relationships": [
+    {
+      "id": "rel_1794516083002_erdbko",
+      "parentTableId": "tbl_1793888197225_7p18rh",
+      "parentFieldName": "id",
+      "childTableId": "tbl_1794321339984_ai05l5",
+      "childFieldName": "IdFornec",
+      "cardinality": "1:N"
+    },
+    {
+      "id": "rel_1794516828623_omde9d",
+      "parentTableId": "tbl_1793888197225_7p18rh",
+      "parentFieldName": "id",
+      "childTableId": "tbl_1794516733142_rgl24c",
+      "childFieldName": "idFornec",
+      "cardinality": "1:N"
+    },
+    {
+      "id": "rel_1794516853624_n2ax7s",
+      "parentTableId": "tbl_1794321339984_ai05l5",
+      "parentFieldName": "id",
+      "childTableId": "tbl_1794516618268_6pg8hd",
+      "childFieldName": "idPedido",
+      "cardinality": "1:N"
+    },
+    {
+      "id": "rel_1794517100005_wojq1w",
+      "parentTableId": "tbl_1794516733142_rgl24c",
+      "parentFieldName": "id",
+      "childTableId": "tbl_1794516618268_6pg8hd",
+      "childFieldName": "idItem",
+      "cardinality": "1:N"
+    }
+  ],
+  "savedAt": "2026-11-12T20:58:25.037Z"
+}

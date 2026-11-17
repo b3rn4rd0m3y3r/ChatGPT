@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebAccess — Gerenciador de Banco de Dados</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">W</div>
+      <div><strong>WebAccess</strong><small>Gerenciador de Banco de Dados</small></div>
+    </div>
+    <div class="database-indicator">
+      <span class="status-dot"></span>
+      <span>Banco atual:</span>
+      <strong id="databaseName">MeuBanco</strong>
+    </div>
+    <div class="top-actions">
+      <span id="storageStatus" class="storage-status">Abrindo banco...</span>
+      <span id="sqliteStatus" class="storage-status">Carregando SQLite...</span>
+      <button class="button button-outline button-small" id="exportDbBtn" type="button">Exportar JSON</button>
+      <button class="button button-outline button-small" id="importDbBtn" type="button">Importar JSON</button>
+      <input type="file" id="importDbFile" accept=".json,application/json" hidden>
+      <button class="icon-button" id="renameDbBtn" title="Renomear banco" aria-label="Renomear banco">✎</button>
+      <button class="help-button" id="aboutBtn">Sobre</button>
+    </div>
+  </header>
+
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar-heading">ÁREA DE TRABALHO</div>
+      <button class="nav-item active" data-view="inicio"><span class="nav-icon">⌂</span> Visão geral</button>
+      <div class="nav-section">OBJETOS DO BANCO</div>
+      <button class="nav-item" data-view="tabelas"><span class="nav-icon">▦</span> Tabelas <span class="count" id="tableCount">0</span></button>
+      <button class="nav-item" data-view="consultas"><span class="nav-icon">⌕</span> Consultas SQL</button>
+      <button class="nav-item" data-view="relacionamentos"><span class="nav-icon">⌘</span> Relacionamentos</button>
+      <button class="nav-item" data-view="formularios"><span class="nav-icon">▤</span> Formulários</button>
+      <button class="nav-item" data-view="relatorios"><span class="nav-icon">▥</span> Relatórios</button>
+      <div class="sidebar-bottom">
+        <div class="sidebar-note">
+          <span class="note-icon">i</span>
+          <div><strong>Projeto em construção</strong><small>Persistência local, backups JSON e relacionamentos 1:N disponíveis na Sessão 05.</small></div>
+        </div>
+        <small class="version-label">WEBACCESS · VERSÃO 1.0.0</small>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <div class="page-heading">
+        <div>
+          <div class="eyebrow" id="eyebrow">ÁREA DE TRABALHO</div>
+          <h1 id="pageTitle">Visão geral</h1>
+          <p id="pageDescription">Bem-vindo ao seu ambiente de gerenciamento de dados.</p>
+        </div>
+        <div class="heading-actions" id="headingActions">
+          <button class="button button-primary" id="newTableBtn"><span>＋</span> Nova tabela</button>
+        </div>
+      </div>
+
+      <section id="view-inicio" class="view">
+        <div class="welcome-card">
+          <div class="welcome-copy">
+            <span class="welcome-tag">SEU AMBIENTE DE DADOS</span>
+            <h2>Organize seus dados.<br><em>Consulte suas informações.</em></h2>
+            <p>O WebAccess está sendo construído para oferecer, no navegador, os recursos essenciais de um gerenciador de banco de dados.</p>
+            <button class="button button-light" data-goto="tabelas">Explorar tabelas <span>→</span></button>
+          </div>
+          <div class="welcome-art" aria-hidden="true">
+            <div class="art-window">
+              <div class="art-window-bar"><i></i><i></i><i></i></div>
+              <div class="art-row art-head"><b></b><b></b><b></b></div>
+              <div class="art-row"><b></b><b></b><b></b></div>
+              <div class="art-row"><b></b><b></b><b></b></div>
+              <div class="art-row"><b></b><b></b><b></b></div>
+            </div>
+            <div class="art-chip">SQL <span>✓</span></div>
+            <div class="art-orbit"></div>
+          </div>
+        </div>
+
+        <div class="section-title-row"><div><h2>Resumo do banco</h2><p>Objetos disponíveis no banco atual.</p></div></div>
+        <div class="stats-grid">
+          <article class="stat-card"><div class="stat-icon purple">▦</div><div><span>Tabelas</span><strong id="statTables">0</strong><small>Estruturas de dados</small></div></article>
+          <article class="stat-card"><div class="stat-icon blue">⌕</div><div><span>Consultas SQL</span><strong id="statSavedQueries">0</strong><small>Consultas salvas</small></div></article>
+          <article class="stat-card"><div class="stat-icon orange">⌘</div><div><span>Relacionamentos</span><strong id="statRelationships">0</strong><small>Ligações entre tabelas</small></div></article>
+        </div>
+
+        <div class="section-title-row recent-heading"><div><h2>Próximos passos</h2><p>O desenvolvimento será feito progressivamente.</p></div></div>
+        <div class="steps-grid">
+          <div class="step-card"><span class="step-number">01</span><div><strong>Interface principal</strong><small>Concluída nesta sessão</small></div><span class="step-check">✓</span></div>
+          <div class="step-card"><span class="step-number">02</span><div><strong>Construção de tabelas</strong><small>Próxima implementação</small></div><span class="step-arrow">→</span></div>
+          <div class="step-card"><span class="step-number">03</span><div><strong>Entrada de registros</strong><small>Gerenciamento dos dados</small></div><span class="step-arrow">→</span></div>
+        </div>
+      </section>
+
+      <section id="view-tabelas" class="view hidden">
+        <div class="content-card">
+          <div class="card-toolbar"><div><h2>Minhas tabelas</h2><p>Crie tabelas, abra seus registros e gerencie os dados armazenados.</p></div><button class="button button-primary" id="newTableBtn2">＋ Nova tabela</button></div>
+          <div class="empty-state" id="tablesEmpty"><div class="empty-illustration">▦</div><h3>Nenhuma tabela criada</h3><p>Comece criando sua primeira tabela. Você poderá definir campos, tipos de dados e chave primária.</p><button class="button button-outline" id="createPlaceholderBtn">＋ Criar primeira tabela</button></div>
+          <div id="tablesList" class="table-list hidden"></div>
+        </div>
+      </section>
+
+
+      <section id="view-registros" class="view hidden">
+        <div class="records-toolbar">
+          <button class="button button-outline button-small" id="backToTablesBtn">← Voltar às tabelas</button>
+          <div class="records-toolbar-right">
+            <span id="recordCountLabel" class="record-count">0 registros</span>
+            <button class="button button-primary" id="newRecordBtn">＋ Novo registro</button>
+          </div>
+        </div>
+        <div class="content-card records-card">
+          <div class="card-toolbar">
+            <div><h2 id="recordTableName">Tabela</h2><p>Visualize, insira, edite ou exclua registros.</p></div>
+          </div>
+          <div class="empty-state" id="recordsEmpty">
+            <div class="empty-illustration">▤</div>
+            <h3>Esta tabela ainda não possui registros</h3>
+            <p>Insira o primeiro registro para começar a preencher sua tabela.</p>
+            <button class="button button-primary" id="emptyNewRecordBtn" type="button">＋ Inserir primeiro registro</button>
+          </div>
+          <div id="recordsTableWrap" class="records-table-wrap hidden">
+            <table class="records-table">
+              <thead><tr id="recordsHeader"></tr></thead>
+              <tbody id="recordsBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-consultas" class="view hidden">
+        <div class="feature-intro"><div class="feature-icon blue">⌕</div><div><h2>Editor SQL</h2><p>Digite comandos SQL para consultar e alterar os dados do banco atual. A execução é feita pelo SQLite integrado ao WebAccess.</p></div></div>
+        <div class="content-card sql-workbench">
+          <div class="sql-editor-toolbar"><div><strong>Instrução SQL</strong><small>Dados: SELECT, INSERT, UPDATE e DELETE. Estrutura: CREATE TABLE, ALTER TABLE e DROP TABLE.</small></div><button class="button button-outline button-small" id="clearSqlBtn" type="button">Limpar editor</button></div>
+          <textarea id="sqlEditor" class="sql-editor" spellcheck="false" aria-label="Editor SQL">SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name;</textarea>
+          <div class="sql-actions"><span id="sqlEngineLabel" class="sql-engine-label">SQLite · aguardando inicialização</span><button class="button button-primary" id="runSqlBtn" type="button">▶ Executar SQL</button></div>
+          <div class="sql-result-heading"><strong>Resultado</strong><span id="sqlResultMeta">Nenhuma execução realizada.</span></div>
+          <div id="sqlResult" class="sql-result"><div class="sql-empty">O resultado da execução aparecerá aqui.</div></div>
+        </div>
+        <div class="content-card saved-queries-card">
+          <div class="card-toolbar"><div><h2>Minhas consultas salvas</h2><p>Guarde instruções SELECT para reutilizar quando precisar.</p></div></div>
+          <div class="saved-query-form">
+            <label class="saved-query-label" for="savedQueryName">Nome da consulta</label>
+            <input id="savedQueryName" class="form-input" type="text" maxlength="70" placeholder="Ex.: Clientes com ordens">
+            <button class="button button-primary" id="saveQueryBtn" type="button">＋ Salvar consulta atual</button>
+          </div>
+          <div id="savedQueriesEmpty" class="sql-empty">Você ainda não salvou nenhuma consulta.</div>
+          <div id="savedQueriesList" class="saved-queries-list hidden"></div>
+          <p class="saved-query-note">Nesta etapa, somente consultas SELECT podem ser salvas. As consultas ficam no backup JSON junto com as tabelas e os registros.</p>
+        </div>
+        <div class="sql-help content-card"><strong>Exemplos de uso</strong><div class="sql-examples"><button type="button" data-sql="SELECT * FROM ">SELECT * FROM tabela</button><button type="button" data-sql="INSERT INTO tabela (campo) VALUES ('valor');">INSERT</button><button type="button" data-sql="UPDATE tabela SET campo = 'valor' WHERE id = 1;">UPDATE</button><button type="button" data-sql="DELETE FROM tabela WHERE id = 1;">DELETE</button><button type="button" data-sql="CREATE TABLE nova_tabela (id INTEGER PRIMARY KEY, nome TEXT);">CREATE TABLE</button><button type="button" data-sql="ALTER TABLE tabela ADD COLUMN observacao TEXT;">ALTER TABLE</button><button type="button" data-sql="DROP TABLE nova_tabela;">DROP TABLE</button></div><p>CREATE TABLE, ALTER TABLE e DROP TABLE também atualizam a estrutura visual do WebAccess. Use os nomes reais e faça um backup JSON antes de alterações importantes. DROP TABLE exclui a tabela e seus registros.</p></div>
+      </section>
+
+      <section id="view-formularios" class="view hidden">
+        <div class="feature-intro"><div class="feature-icon blue">▤</div><div><h2>Formulários</h2><p>Selecione uma tabela para cadastrar, consultar, editar e excluir registros por meio de um formulário.</p></div></div>
+        <div class="content-card form-browser-card">
+          <div class="form-browser-toolbar"><div><label class="form-label" for="formTableSelect">Tabela do formulário</label><select class="form-input" id="formTableSelect"><option value="">Selecione uma tabela</option></select></div><button class="button button-primary" id="formNewRecordBtn" type="button" disabled>＋ Novo registro</button></div>
+          <div id="formBrowserEmpty" class="empty-state"><div class="empty-illustration">▤</div><h3>Selecione uma tabela</h3><p>O formulário será montado automaticamente com os campos definidos na estrutura da tabela.</p></div>
+          <div id="formBrowserContent" class="hidden"><div class="form-browser-summary" id="formBrowserSummary"></div><div class="records-table-wrap"><table class="records-table"><thead><tr id="formBrowserHeader"></tr></thead><tbody id="formBrowserBody"></tbody></table></div><div class="form-browser-empty hidden" id="formNoRecords">Esta tabela ainda não possui registros.</div></div>
+        </div>
+      </section>
+
+      <section id="view-relatorios" class="view hidden">
+        <div class="feature-intro"><div class="feature-icon orange">▥</div><div><h2>Relatórios</h2><p>Monte uma visão tabular dos dados, escolha os campos, filtre registros e imprima ou exporte o resultado em CSV.</p></div></div>
+        <div class="content-card report-builder">
+          <div class="report-builder-grid"><div><label class="form-label" for="reportTableSelect">Tabela</label><select class="form-input" id="reportTableSelect"><option value="">Selecione uma tabela</option></select></div><div><label class="form-label" for="reportFilterInput">Filtro textual</label><input class="form-input" id="reportFilterInput" type="search" placeholder="Digite um termo para filtrar os registros"></div></div>
+          <div class="report-fields-heading"><strong>Campos do relatório</strong><span>Marque os campos que deseja exibir.</span></div><div id="reportFields" class="report-fields"><div class="sql-empty">Selecione uma tabela para listar seus campos.</div></div>
+          <div class="report-actions"><div class="saved-report-form"><input class="form-input" id="reportNameInput" maxlength="70" placeholder="Nome para salvar este relatório"><button class="button button-outline" id="saveReportBtn" type="button" disabled>Salvar definição</button></div><div class="report-output-actions"><button class="button button-outline" id="exportReportBtn" type="button" disabled>Exportar CSV</button><button class="button button-primary" id="printReportBtn" type="button" disabled>Imprimir relatório</button></div></div>
+        </div>
+        <div class="content-card report-preview-card"><div class="card-toolbar"><div><h2 id="reportPreviewTitle">Prévia do relatório</h2><p id="reportPreviewMeta">O resultado aparecerá aqui após selecionar uma tabela.</p></div></div><div id="reportPreview" class="report-preview"><div class="sql-empty">Nenhum relatório gerado.</div></div></div>
+        <div class="content-card saved-reports-card"><div class="card-toolbar"><div><h2>Relatórios salvos</h2><p>Reutilize as definições de relatórios neste banco.</p></div></div><div id="savedReportsEmpty" class="sql-empty">Você ainda não salvou relatórios.</div><div id="savedReportsList" class="saved-reports-list hidden"></div></div>
+      </section>
+
+      <section id="view-relacionamentos" class="view hidden">
+        <div class="relationship-toolbar">
+          <div class="feature-intro"><div class="feature-icon orange">⌘</div><div><h2>Relacionamentos</h2><p>Crie ligações 1:N entre uma chave primária e um campo de outra tabela.</p></div></div>
+          <button class="button button-primary" id="newRelationshipBtn">＋ Novo relacionamento</button>
+        </div>
+        <div class="relationship-help">
+          <strong>Como funciona?</strong>
+          <span>O lado <b>1</b> identifica a tabela principal (PK); o lado <b>N</b> identifica a tabela relacionada (FK). Ao inserir um registro, a chave estrangeira será escolhida entre os valores existentes na tabela principal.</span>
+        </div>
+        <div id="relationshipsEmpty" class="content-card empty-state">
+          <div class="empty-illustration">⌘</div>
+          <h3>Nenhum relacionamento definido</h3>
+          <p>Crie pelo menos duas tabelas, cada uma com seus campos. Depois, estabeleça uma ligação entre a PK da tabela principal e um campo compatível da tabela relacionada.</p>
+          <button class="button button-primary" id="emptyNewRelationshipBtn">＋ Criar primeiro relacionamento</button>
+        </div>
+        <div id="relationshipsList" class="relationships-list hidden"></div>
+      </section>
+
+      <footer class="workspace-footer"><span>WebAccess · Projeto educacional</span><span>HTML · CSS · JavaScript</span></footer>
+    </main>
+  </div>
+
+  <dialog id="tableDialog" class="modal table-modal">
+    <form id="tableForm" method="dialog">
+      <div class="modal-top"><div><span class="modal-kicker">ESTRUTURA DA TABELA</span><h2 id="tableDialogTitle">Nova tabela</h2></div><button type="button" class="modal-close" id="closeTableDialog" aria-label="Fechar">×</button></div>
+      <label class="form-label" for="tableNameInput">Nome da tabela</label>
+      <input class="form-input" id="tableNameInput" name="tableName" maxlength="60" placeholder="Ex.: clientes" required autocomplete="off">
+      <div class="fields-heading"><div><strong>Campos</strong><small>Defina os campos que compõem a tabela.</small></div><button type="button" class="button button-outline button-small" id="addFieldBtn">＋ Adicionar campo</button></div>
+      <div class="field-column-labels"><span>Nome do campo</span><span>Tipo de dados</span><span>Chave primária</span><span></span></div>
+      <div id="fieldRows" class="field-rows"></div>
+      <div class="form-hint">Você pode definir no máximo uma chave primária por tabela. Os tipos são compatíveis com a tipagem do SQLite.</div>
+      <div class="modal-actions"><button type="button" class="button button-outline" id="cancelTableBtn">Cancelar</button><button type="submit" class="button button-primary" id="saveTableBtn">Salvar tabela</button></div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <dialog id="relationshipDialog" class="modal relationship-modal">
+    <form id="relationshipForm" method="dialog">
+      <div class="modal-top">
+        <div><span class="modal-kicker">INTEGRIDADE REFERENCIAL</span><h2 id="relationshipDialogTitle">Novo relacionamento</h2></div>
+        <button type="button" class="modal-close" id="closeRelationshipDialog" aria-label="Fechar">×</button>
+      </div>
+      <div class="relationship-form-grid">
+        <div class="relationship-side">
+          <span class="side-number">1</span>
+          <h3>Tabela principal</h3>
+          <p>Origem da chave primária</p>
+          <label class="form-label" for="parentTableSelect">Tabela</label>
+          <select class="form-input" id="parentTableSelect" required></select>
+          <label class="form-label" for="parentFieldSelect">Chave primária (PK)</label>
+          <select class="form-input" id="parentFieldSelect" required></select>
+        </div>
+        <div class="relationship-side">
+          <span class="side-number many">N</span>
+          <h3>Tabela relacionada</h3>
+          <p>Destino da chave estrangeira</p>
+          <label class="form-label" for="childTableSelect">Tabela</label>
+          <select class="form-input" id="childTableSelect" required></select>
+          <label class="form-label" for="childFieldSelect">Campo que será FK</label>
+          <select class="form-input" id="childFieldSelect" required></select>
+        </div>
+      </div>
+      <div class="form-hint" id="relationshipHint">A PK e a FK precisam ter tipos de dados compatíveis. A tabela relacionada deve possuir registros somente depois da criação do relacionamento.</div>
+      <div class="modal-actions">
+        <button type="button" class="button button-outline" id="cancelRelationshipBtn">Cancelar</button>
+        <button type="submit" class="button button-primary" id="saveRelationshipBtn">Salvar relacionamento</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="recordDialog" class="modal record-modal">
+    <form id="recordForm" method="dialog">
+      <div class="modal-top">
+        <div><span class="modal-kicker">DADOS DA TABELA</span><h2 id="recordDialogTitle">Novo registro</h2></div>
+        <button type="button" class="modal-close" id="closeRecordDialog" aria-label="Fechar">×</button>
+      </div>
+      <div id="recordFields" class="record-fields"></div>
+      <div class="form-hint" id="recordFormHint">Preencha os valores e salve o registro.</div>
+      <div class="modal-actions">
+        <button type="button" class="button button-outline" id="cancelRecordBtn">Cancelar</button>
+        <button type="submit" class="button button-primary" id="saveRecordBtn">Salvar registro</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="aboutDialog" class="modal">
+    <div class="modal-top"><div class="brand-mark small-mark">W</div><button class="modal-close" id="closeAbout" aria-label="Fechar">×</button></div>
+    <h2>Sobre o WebAccess</h2>
+    <p>Um gerenciador de banco de dados didático, desenvolvido com HTML, CSS e JavaScript, inspirado no fluxo de trabalho do Microsoft Access.</p>
+    <div class="about-meta"><span>Versão</span><strong>1.0.0 — Sessão 10</strong><span>Estado</span><strong>Formulários, relatórios, editor SQL e persistência local</strong></div>
+    <button class="button button-primary modal-ok" id="okAbout">Entendi</button>
+  </dialog>
+  <script src="js/persistencia.js?v=1.0.0"></script>
+  <script src="lib/sql-wasm-inline.js?v=1.14.1"></script>
+  <script src="js/sqlite.js?v=1.0.0"></script>
+  <script src="js/app.js?v=1.0.0"></script>
+</body>
+</html>

@@ -1,10 +1,14 @@
-// WebAccess — Sessão 05: persistência local com IndexedDB e backup JSON
+// WebAccess — Sessão 06: persistência JSON + cópia binária SQLite
 "use strict";
 
 window.WebAccessPersistence = (() => {
+  // Mantém o nome original: é nele que está o banco_atual do usuário.
   const DB_NAME = "WebAccessStorage";
-  const DB_VERSION = 1;
+  const DB_VERSION = 4;
+  const BUILD_ID = "WA-0.6.0-20261110";
   const STORE_NAME = "bancos";
+  const SQLITE_STORE_NAME = "sqlite_bancos";
+  const SQLITE_RECORD_KEY = "banco_sqlite";
   const RECORD_KEY = "banco_atual";
   let db = null;
   let ready = false;
@@ -21,20 +25,46 @@ window.WebAccessPersistence = (() => {
     element.className = `storage-status ${state}`.trim();
   }
 
+  function normalizeSavedRecord(value) {
+    if (!value) return null;
+    // Versão anterior pode ter gravado o snapshot diretamente com a chave externa
+    // "banco_atual", enquanto a versão atual usa { id, data, updatedAt }.
+    if (value.format === "WebAccess") {
+      return { id: RECORD_KEY, data: value, updatedAt: new Date().toISOString() };
+    }
+    if (value.data && value.data.format === "WebAccess") {
+      return { ...value, id: RECORD_KEY };
+    }
+    return value;
+  }
+
   function openDatabase() {
     return new Promise((resolve, reject) => {
-      if (!("indexedDB" in window)) {
+      if (!window.indexedDB) {
         reject(new Error("Este navegador não oferece suporte ao armazenamento IndexedDB."));
         return;
       }
+
+      // Não recria nem apaga o object store existente. A chave banco_atual
+      // é lida exatamente como foi gravada no banco original.
       const request = indexedDB.open(DB_NAME, DB_VERSION);
-      request.onupgradeneeded = () => {
+      request.onupgradeneeded = event => {
         const database = request.result;
         if (!database.objectStoreNames.contains(STORE_NAME)) {
-          database.createObjectStore(STORE_NAME, { keyPath: "id" });
+          // Usamos chave externa: put(registro, "banco_atual").
+          database.createObjectStore(STORE_NAME);
+        }
+        // Armazena uma cópia binária SQLite separada. O object store original
+        // "bancos" não é alterado nem recriado.
+        if (!database.objectStoreNames.contains(SQLITE_STORE_NAME)) {
+          database.createObjectStore(SQLITE_STORE_NAME);
         }
       };
-      request.onsuccess = () => resolve(request.result);
+      request.onsuccess = () => {
+        db = request.result;
+        db.onversionchange = () => db.close();
+        resolve(db);
+      };
       request.onerror = () => reject(request.error || new Error("Não foi possível abrir o armazenamento local."));
       request.onblocked = () => reject(new Error("O armazenamento está bloqueado por outra aba do WebAccess. Feche as outras abas e tente novamente."));
     });
@@ -44,7 +74,7 @@ window.WebAccessPersistence = (() => {
     return new Promise((resolve, reject) => {
       const transaction = db.transaction(STORE_NAME, "readonly");
       const request = transaction.objectStore(STORE_NAME).get(RECORD_KEY);
-      request.onsuccess = () => resolve(request.result || null);
+      request.onsuccess = () => resolve(normalizeSavedRecord(request.result || null));
       request.onerror = () => reject(request.error || new Error("Não foi possível ler o banco salvo."));
       transaction.onabort = () => reject(transaction.error || new Error("A leitura do banco foi cancelada."));
     });
@@ -53,10 +83,47 @@ window.WebAccessPersistence = (() => {
   function writeRecord(record) {
     return new Promise((resolve, reject) => {
       const transaction = db.transaction(STORE_NAME, "readwrite");
-      transaction.objectStore(STORE_NAME).put(record);
+      const store = transaction.objectStore(STORE_NAME);
+
+      // O armazenamento original do WebAccess usa chave externa. A chave
+      // convencionada é literalmente "banco_atual". O segundo argumento é
+      // obrigatório quando keyPath é null (out-of-line key).
+      if (store.keyPath === null) {
+        store.put(record, "banco_atual");
+      } else if (store.keyPath === "id") {
+        // Compatibilidade com bancos criados pela primeira versão da Sessão 05.
+        record.id = "banco_atual";
+        store.put(record);
+      } else {
+        transaction.abort();
+        reject(new Error("Object store bancos com keyPath inesperado: " + String(store.keyPath)));
+        return;
+      }
+
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error || new Error("Não foi possível gravar os dados."));
       transaction.onabort = () => reject(transaction.error || new Error("A gravação foi cancelada."));
+    });
+  }
+
+  function saveSqliteBytes(bytes) {
+    if (!ready || !db) return Promise.reject(new Error("O armazenamento ainda não está pronto."));
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(SQLITE_STORE_NAME, "readwrite");
+      transaction.objectStore(SQLITE_STORE_NAME).put(new Uint8Array(bytes), SQLITE_RECORD_KEY);
+      transaction.oncomplete = () => resolve(true);
+      transaction.onerror = () => reject(transaction.error || new Error("Não foi possível salvar o arquivo SQLite."));
+      transaction.onabort = () => reject(transaction.error || new Error("O salvamento do arquivo SQLite foi cancelado."));
+    });
+  }
+
+  function loadSqliteBytes() {
+    if (!ready || !db) return Promise.reject(new Error("O armazenamento ainda não está pronto."));
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(SQLITE_STORE_NAME, "readonly");
+      const request = transaction.objectStore(SQLITE_STORE_NAME).get(SQLITE_RECORD_KEY);
+      request.onsuccess = () => resolve(request.result ? new Uint8Array(request.result) : null);
+      request.onerror = () => reject(request.error || new Error("Não foi possível ler o arquivo SQLite."));
     });
   }
 
@@ -138,6 +205,13 @@ window.WebAccessPersistence = (() => {
     try {
       const snapshot = createSnapshot();
       await writeRecord({ id: RECORD_KEY, data: snapshot, updatedAt: new Date().toISOString() });
+      if (window.WebAccessSQLite && window.WebAccessSQLite.isReady()) {
+        try {
+          await window.WebAccessSQLite.syncSnapshot(snapshot);
+        } catch (sqliteError) {
+          console.error("WebAccess: falha ao sincronizar a cópia SQLite:", sqliteError);
+        }
+      }
       setStatus("Salvo neste navegador", "saved");
       return true;
     } catch (error) {
@@ -163,14 +237,18 @@ window.WebAccessPersistence = (() => {
     afterRestoreCallback = options.afterRestore;
     setStatus("Abrindo banco...", "saving");
     db = await openDatabase();
+    console.info("IndexedDB:", DB_NAME, "objectStore:", STORE_NAME, "keyPath:", db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).keyPath);
     const savedRecord = await readSavedRecord();
-    if (savedRecord && savedRecord.data) {
-      const snapshot = validateDatabase(savedRecord.data);
+    console.info("Registro banco_atual encontrado:", !!savedRecord);
+    // O valor de banco_atual pode ser o snapshot direto ou um envelope {data: ...}.
+    const savedData = savedRecord && (savedRecord.data || (savedRecord.format === "WebAccess" ? savedRecord : null));
+    if (savedData) {
+      const snapshot = validateDatabase(savedData);
       applySnapshotCallback(snapshot);
     }
     ready = true;
     if (typeof afterRestoreCallback === "function") afterRestoreCallback();
-    if (savedRecord) {
+    if (savedData) {
       setStatus("Banco recuperado", "saved");
     } else {
       await saveNow();
@@ -218,6 +296,8 @@ window.WebAccessPersistence = (() => {
     saveNow,
     exportJSON,
     importJSON,
-    isReady: () => ready
+    isReady: () => ready,
+    saveSqliteBytes,
+    loadSqliteBytes
   };
 })();

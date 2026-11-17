@@ -1,0 +1,58 @@
+{
+  "application": "Mind Mapper",
+  "version": "2.0",
+  "spacing": 155,
+  "nextId": 8,
+  "root": {
+    "id": 1,
+    "text": "IDEIA CENTRAL",
+    "children": [
+      {
+        "id": 2,
+        "text": "1.1",
+        "children": [
+          {
+            "id": 6,
+            "text": "1.1.1",
+            "children": [],
+            "collapsed": false,
+            "style": null
+          },
+          {
+            "id": 7,
+            "text": "1.1.2",
+            "children": [],
+            "collapsed": false,
+            "style": null
+          }
+        ],
+        "collapsed": false,
+        "style": null
+      },
+      {
+        "id": 3,
+        "text": "1.2",
+        "children": [
+          {
+            "id": 4,
+            "text": "1.2.1",
+            "children": [],
+            "collapsed": false,
+            "style": null
+          },
+          {
+            "id": 5,
+            "text": "1.2.2",
+            "children": [],
+            "collapsed": false,
+            "style": null
+          }
+        ],
+        "collapsed": false,
+        "style": null
+      }
+    ],
+    "collapsed": false,
+    "style": null
+  }
+}

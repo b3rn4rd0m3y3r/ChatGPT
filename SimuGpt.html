@@ -1,0 +1,1755 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Passeio Urbano - Simulador em Primeira Pessoa</title>
+
+<style>
+* { box-sizing: border-box; }
+
+html, body {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  background: #101820;
+  font-family: Arial, sans-serif;
+}
+
+#game {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+#scene {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+#topFrame {
+  position: absolute;
+  top: 0;
+  width: 100%;
+  height: 12px;
+  background: linear-gradient(#080d12,#45515a,#10171d);
+  z-index: 3;
+}
+
+#instructions {
+  position: absolute;
+  top: 23px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  padding: 9px 16px;
+  color: white;
+  background: rgba(12,24,33,.83);
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 20px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+#location {
+  position: absolute;
+  top: 66px;
+  left: 18px;
+  color: white;
+  text-shadow: 0 2px 5px #111;
+  font-size: 12px;
+  letter-spacing: 1px;
+  z-index: 4;
+}
+
+#pause {
+  position: absolute;
+  top: 17px;
+  right: 18px;
+  z-index: 8;
+  padding: 8px 13px;
+  color: white;
+  background: #273b49;
+  border: 1px solid #718591;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+#turnMessage {
+  display: none;
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  bottom: 37%;
+  transform: translateX(-50%);
+  padding: 9px 15px;
+  max-width: 90%;
+  color: white;
+  text-align: center;
+  white-space: nowrap;
+  font-size: 12px;
+  background: rgba(12,24,33,.88);
+  border: 1px solid #82959e;
+  border-radius: 8px;
+}
+
+/* ==================================================
+   PAINEL E INTERIOR DO AUTOMÓVEL
+   ================================================== */
+
+#cockpit {
+  position: absolute;
+  z-index: 5;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 36%;
+  min-height: 215px;
+  background: linear-gradient(
+    180deg,
+    #45515a 0%,
+    #28343d 9%,
+    #17232b 35%,
+    #0a1117 100%
+  );
+  clip-path: polygon(0 8%,12% 0,88% 0,100% 8%,100% 100%,0 100%);
+  border-top: 2px solid #64717a;
+  box-shadow: 0 -15px 35px rgba(0,0,0,.3);
+}
+
+#dashboardTop {
+  position: absolute;
+  top: 0;
+  width: 100%;
+  height: 32px;
+  background: linear-gradient(#4a5660,#26333d);
+  border-bottom: 2px solid #10171c;
+}
+
+#dashboard {
+  position: absolute;
+  top: 42px;
+  left: 41%;
+  right: 3%;
+  height: 78px;
+  padding: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  border-radius: 12px;
+  border: 1px solid #566771;
+  background: linear-gradient(145deg,#1c2a34,#080e13);
+  box-shadow: inset 0 3px 9px #05090d, 0 4px 7px #090e12;
+}
+
+.gauge {
+  min-width: 60px;
+  text-align: center;
+}
+
+.gaugeName {
+  color: #9eafb9;
+  font-size: 9px;
+  letter-spacing: 1px;
+}
+
+.gaugeValue {
+  margin-top: 3px;
+  color: #e3edf1;
+  font-size: 26px;
+  font-weight: bold;
+  font-variant-numeric: tabular-nums;
+}
+
+.gaugeUnit {
+  color: #a4b5be;
+  font-size: 10px;
+}
+
+#speedNumber { color: #91e5b3; }
+#fuelNumber { color: #e7c283; }
+#gearNumber { color: #e6d48b; }
+
+/* Volante */
+
+#steeringWheel {
+  position: absolute;
+  top: 62px;
+  left: 21%;
+  width: 178px;
+  height: 178px;
+  border: 17px solid #080d12;
+  border-radius: 50%;
+  box-shadow:
+    inset 0 0 0 3px #64717a,
+    0 5px 12px #05090d;
+}
+
+#steeringWheel::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 11px;
+  height: 78px;
+  background: linear-gradient(90deg,#121b20,#76848b,#121b20);
+  transform: translate(-50%,-50%);
+}
+
+#steeringWheel::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 102px;
+  height: 12px;
+  background: linear-gradient(#11191f,#68777f,#11191f);
+  transform: translate(-50%,-50%);
+}
+
+#wheelHub {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: radial-gradient(circle,#65747c,#16222a 72%);
+  border: 2px solid #7e8b93;
+  transform: translate(-50%,-50%);
+}
+
+#console {
+  position: absolute;
+  top: 135px;
+  left: 49%;
+  width: 18%;
+  height: 53px;
+  padding-top: 6px;
+  text-align: center;
+  color: #9bcbd2;
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  border: 1px solid #566773;
+  border-radius: 8px;
+  background: linear-gradient(135deg,#2b3b45,#10191f);
+}
+
+#consoleScreen {
+  width: 75%;
+  height: 18px;
+  margin: 4px auto;
+  line-height: 18px;
+  border: 1px solid #55717c;
+  border-radius: 3px;
+  background: #123039;
+  color: #b1e2df;
+  font-size: 9px;
+}
+
+/* Controles */
+
+#controls {
+  position: absolute;
+  right: 20px;
+  bottom: 13px;
+  width: 265px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.controlRow {
+  display: flex;
+  gap: 7px;
+}
+
+.controlButton {
+  flex: 1;
+  height: 38px;
+  color: white;
+  font-size: 11px;
+  font-weight: bold;
+  border: 1px solid #7c8d97;
+  border-radius: 7px;
+  background: linear-gradient(#465965,#263945);
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+}
+
+.controlButton.active {
+  background: #397f94;
+  border-color: #b4e6ef;
+}
+
+#accelerate {
+  background: linear-gradient(#25885d,#145439);
+}
+
+#brake {
+  background: linear-gradient(#a94e48,#702e2b);
+}
+
+#controlStatus {
+  color: #a9bbc5;
+  text-align: center;
+  font-size: 10px;
+}
+
+@media(max-width:700px) {
+  #cockpit {
+    height: 41%;
+    min-height: 230px;
+  }
+
+  #instructions {
+    top: 17px;
+    max-width: 94%;
+    white-space: normal;
+    text-align: center;
+    font-size: 10px;
+  }
+
+  #steeringWheel {
+    top: 67px;
+    left: 3%;
+    width: 125px;
+    height: 125px;
+    border-width: 13px;
+  }
+
+  #steeringWheel::before { height: 55px; }
+  #steeringWheel::after { width: 70px; }
+
+  #dashboard {
+    top: 32px;
+    left: 35%;
+    right: 2%;
+    height: 68px;
+  }
+
+  .gaugeName { font-size: 7px; }
+  .gaugeValue { font-size: 19px; }
+
+  #console { display: none; }
+
+  #controls {
+    right: 7px;
+    bottom: 8px;
+    width: 48%;
+    gap: 4px;
+  }
+
+  .controlButton {
+    height: 32px;
+    font-size: 9px;
+  }
+
+  #controlStatus { font-size: 8px; }
+}
+</style>
+</head>
+
+<body>
+<div id="game">
+
+  <canvas id="scene"></canvas>
+
+  <div id="topFrame"></div>
+
+  <div id="instructions">
+    ↑ Acelerar · ↓ Frear · ← / → Virar nos cruzamentos
+  </div>
+
+  <div id="location">BAIRRO CENTRAL · RUA PRINCIPAL</div>
+
+  <button id="pause">Ⅱ Pausar</button>
+
+  <div id="turnMessage"></div>
+
+  <div id="cockpit">
+    <div id="dashboardTop"></div>
+
+    <div id="steeringWheel">
+      <div id="wheelHub"></div>
+    </div>
+
+    <div id="dashboard">
+      <div class="gauge">
+        <div class="gaugeName">VELOCIDADE</div>
+        <div class="gaugeValue" id="speedNumber">0</div>
+        <div class="gaugeUnit">km/h</div>
+      </div>
+
+      <div class="gauge">
+        <div class="gaugeName">MARCHA</div>
+        <div class="gaugeValue" id="gearNumber">D</div>
+        <div class="gaugeUnit">AUTOMÁTICO</div>
+      </div>
+
+      <div class="gauge">
+        <div class="gaugeName">COMBUSTÍVEL</div>
+        <div class="gaugeValue" id="fuelNumber">100</div>
+        <div class="gaugeUnit">%</div>
+      </div>
+
+      <div class="gauge">
+        <div class="gaugeName">ODÔMETRO</div>
+        <div class="gaugeValue" id="distanceNumber">0.0</div>
+        <div class="gaugeUnit">km</div>
+      </div>
+    </div>
+
+    <div id="console">
+      CENTRAL MULTIMÍDIA
+      <div id="consoleScreen">PASSEIO URBANO</div>
+    </div>
+
+    <div id="controls">
+      <div class="controlRow">
+        <button class="controlButton" data-control="left">← ESQUERDA</button>
+        <button class="controlButton" data-control="right">DIREITA →</button>
+      </div>
+
+      <div class="controlRow">
+        <button class="controlButton" id="brake" data-control="brake">FREAR ↓</button>
+        <button class="controlButton" id="accelerate" data-control="gas">ACELERAR ↑</button>
+      </div>
+
+      <div id="controlStatus">Aguardando partida</div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ============================================================
+   1. CONFIGURAÇÃO DA CÂMERA E DO CANVAS
+   ============================================================ */
+
+const canvas = document.getElementById("scene");
+const ctx = canvas.getContext("2d");
+
+let W = 0;
+let H = 0;
+let horizon = 0;
+let viewBottom = 0;
+let focal = 0;
+
+const CAMERA_HEIGHT = 1.65;
+const NEAR = 2.5;
+
+function resize() {
+  const ratio = Math.min(window.devicePixelRatio || 1, 2);
+
+  W = window.innerWidth;
+  H = window.innerHeight;
+
+  canvas.width = W * ratio;
+  canvas.height = H * ratio;
+
+  canvas.style.width = W + "px";
+  canvas.style.height = H + "px";
+
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+
+  horizon = H * 0.24;
+  viewBottom = H * 0.69;
+  focal = H * 0.95;
+}
+
+window.addEventListener("resize", resize);
+resize();
+
+
+/* ============================================================
+   2. MUNDO URBANO E ESTADO DO CARRO
+   ============================================================ */
+
+const GRID = 160;
+const ROAD_HALF = 17;
+const SIDEWALK = 5;
+const LANE = 5;
+
+const SPEED_SCALE = 2.2;
+
+/*
+  Convenção do mapa:
+
+  Norte = +Z
+  Leste = +X
+  Sul   = -Z
+  Oeste = -X
+
+  Ângulo zero significa olhar para +Z.
+*/
+
+const DIRS = [
+  {x: 0, z: 1},
+  {x: 1, z: 0},
+  {x: 0, z:-1},
+  {x:-1,z: 0}
+];
+
+const TURN_RADIUS = 22;
+const MIN_TURN_RADIUS = 7;
+
+const car = {
+  x: LANE,
+  z: 35,
+  heading: 0,
+  yaw: 0,
+  speed: 0,
+  fuel: 100,
+  distance: 0,
+  turn: null
+};
+
+let turnRequest = 0;
+let paused = false;
+let previousTime = 0;
+let steeringDisplay = 0;
+
+const keys = {
+  gas: false,
+  brake: false,
+  left: false,
+  right: false
+};
+
+
+/* ============================================================
+   3. PROJEÇÃO EM PERSPECTIVA
+   ============================================================ */
+
+/*
+  A posição do motorista é car.x/car.z.
+  car.yaw é o ângulo real da câmera.
+
+  Durante a curva, tanto a posição quanto o ângulo
+  da câmera mudam continuamente.
+*/
+
+function worldToCamera(x,y,z) {
+  const dx = x - car.x;
+  const dz = z - car.z;
+
+  const forwardX = Math.sin(car.yaw);
+  const forwardZ = Math.cos(car.yaw);
+
+  const rightX = Math.cos(car.yaw);
+  const rightZ = -Math.sin(car.yaw);
+
+  return {
+    f: dx*forwardX + dz*forwardZ,
+    s: dx*rightX + dz*rightZ,
+    y
+  };
+}
+
+function projectCamera(p) {
+  const scale = focal / p.f;
+
+  return {
+    x: W/2 + p.s*scale,
+    y: horizon + (CAMERA_HEIGHT-p.y)*scale
+  };
+}
+
+function projectPoint(x,y,z) {
+  const p = worldToCamera(x,y,z);
+
+  if (p.f <= NEAR) return null;
+
+  return projectCamera(p);
+}
+
+
+/* ============================================================
+   4. POLÍGONOS COM RECORTE DA CÂMERA
+   ============================================================ */
+
+function drawWorldPolygon(points,color,stroke=null) {
+  const cameraPoints = points.map(p =>
+    worldToCamera(p[0],p[1],p[2])
+  );
+
+  const clipped = [];
+
+  function intersection(a,b) {
+    const t = (NEAR-a.f)/(b.f-a.f);
+
+    return {
+      f: NEAR,
+      s: a.s+(b.s-a.s)*t,
+      y: a.y+(b.y-a.y)*t
+    };
+  }
+
+  for (let i=0;i<cameraPoints.length;i++) {
+    const a = cameraPoints[i];
+    const b = cameraPoints[(i+1)%cameraPoints.length];
+
+    const aInside = a.f>=NEAR;
+    const bInside = b.f>=NEAR;
+
+    if (aInside && bInside) {
+      clipped.push(b);
+    } else if (aInside && !bInside) {
+      clipped.push(intersection(a,b));
+    } else if (!aInside && bInside) {
+      clipped.push(intersection(a,b));
+      clipped.push(b);
+    }
+  }
+
+  if (clipped.length<3) return;
+
+  const screen = clipped.map(projectCamera);
+
+  ctx.beginPath();
+  ctx.moveTo(screen[0].x,screen[0].y);
+
+  for (let i=1;i<screen.length;i++) {
+    ctx.lineTo(screen[i].x,screen[i].y);
+  }
+
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+
+  if (stroke) {
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+}
+
+function groundRect(x1,x2,z1,z2,color) {
+  drawWorldPolygon([
+    [x1,.03,z1],
+    [x2,.03,z1],
+    [x2,.03,z2],
+    [x1,.03,z2]
+  ],color);
+}
+
+
+/* ============================================================
+   5. TIPOS DE QUARTEIRÃO
+   ============================================================ */
+
+function cellType(i,j) {
+  if (i===0 && j===0) return "park";
+  if (i===1 && j===0) return "market";
+  if (i===0 && j===1) return "sport";
+  if (i===-1 && j===0) return "shops";
+
+  const n=((i*17+j*29)%37+37)%37;
+
+  if (n===0 || n===13) return "park";
+  if (n===1 || n===17) return "shops";
+  if (n===2) return "sport";
+
+  return "residential";
+}
+
+
+/* ============================================================
+   6. PISO DOS QUARTEIRÕES
+   ============================================================ */
+
+function drawBlockGround() {
+  const ci = Math.floor(car.x/GRID);
+  const cj = Math.floor(car.z/GRID);
+
+  for (let i=ci-5;i<=ci+5;i++) {
+    for (let j=cj-5;j<=cj+5;j++) {
+
+      const x0=i*GRID+ROAD_HALF+SIDEWALK+8;
+      const x1=(i+1)*GRID-ROAD_HALF-SIDEWALK-8;
+
+      const z0=j*GRID+ROAD_HALF+SIDEWALK+8;
+      const z1=(j+1)*GRID-ROAD_HALF-SIDEWALK-8;
+
+      const type=cellType(i,j);
+
+      let color="#8da681";
+
+      if (type==="park") color="#71a36c";
+      if (type==="market") color="#a9af9c";
+      if (type==="shops") color="#b6ae98";
+      if (type==="sport") color="#819c78";
+
+      groundRect(x0,x1,z0,z1,color);
+
+      if (type==="park") {
+        const cx=(x0+x1)/2;
+        const cz=(z0+z1)/2;
+
+        groundRect(
+          cx-3,cx+3,z0+6,z1-6,
+          "#d8cda9"
+        );
+
+        groundRect(
+          x0+6,x1-6,cz-3,cz+3,
+          "#d8cda9"
+        );
+      }
+
+      if (type==="sport") {
+        const cx=(x0+x1)/2;
+        const cz=(z0+z1)/2;
+
+        groundRect(
+          cx-48,cx+48,cz-32,cz+32,
+          "#34877f"
+        );
+
+        groundRect(
+          cx-42,cx+42,cz-26,cz+26,
+          "#39958c"
+        );
+
+        groundRect(
+          cx-42,cx+42,cz-27,cz-26,
+          "#e9efdc"
+        );
+
+        groundRect(
+          cx-42,cx+42,cz+26,cz+27,
+          "#e9efdc"
+        );
+
+        groundRect(
+          cx-.4,cx+.4,cz-26,cz+26,
+          "#e9efdc"
+        );
+      }
+    }
+  }
+}
+
+
+/* ============================================================
+   7. RUAS E CALÇADAS
+   ============================================================ */
+
+function drawRoads() {
+  const ci=Math.floor(car.x/GRID);
+  const cj=Math.floor(car.z/GRID);
+
+  const xmin=car.x-1050;
+  const xmax=car.x+1050;
+
+  const zmin=car.z-1050;
+  const zmax=car.z+1050;
+
+  // Calçadas verticais
+  for (let i=ci-7;i<=ci+7;i++) {
+    const x=i*GRID;
+
+    groundRect(
+      x-ROAD_HALF-SIDEWALK,
+      x-ROAD_HALF,
+      zmin,zmax,
+      "#c1beb0"
+    );
+
+    groundRect(
+      x+ROAD_HALF,
+      x+ROAD_HALF+SIDEWALK,
+      zmin,zmax,
+      "#c1beb0"
+    );
+  }
+
+  // Calçadas horizontais
+  for (let j=cj-7;j<=cj+7;j++) {
+    const z=j*GRID;
+
+    groundRect(
+      xmin,xmax,
+      z-ROAD_HALF-SIDEWALK,
+      z-ROAD_HALF,
+      "#c1beb0"
+    );
+
+    groundRect(
+      xmin,xmax,
+      z+ROAD_HALF,
+      z+ROAD_HALF+SIDEWALK,
+      "#c1beb0"
+    );
+  }
+
+  // Ruas verticais
+  for (let i=ci-7;i<=ci+7;i++) {
+    const x=i*GRID;
+
+    groundRect(
+      x-ROAD_HALF,
+      x+ROAD_HALF,
+      zmin,zmax,
+      "#4e575d"
+    );
+  }
+
+  // Ruas horizontais
+  for (let j=cj-7;j<=cj+7;j++) {
+    const z=j*GRID;
+
+    groundRect(
+      xmin,xmax,
+      z-ROAD_HALF,
+      z+ROAD_HALF,
+      "#4e575d"
+    );
+  }
+
+  drawRoadMarkings(ci,cj);
+  drawCrosswalks(ci,cj);
+}
+
+
+/* ============================================================
+   8. FAIXAS DE ROLAMENTO E FAIXAS DE PEDESTRES
+   ============================================================ */
+
+function drawRoadMarkings(ci,cj) {
+  // Linhas centrais nas ruas verticais
+  for (let i=ci-4;i<=ci+4;i++) {
+    const x=i*GRID;
+
+    for (let z=car.z-500;z<car.z+500;z+=40) {
+      groundRect(
+        x-.25,x+.25,
+        z,z+12,
+        "#d9cb8e"
+      );
+    }
+  }
+
+  // Linhas centrais nas ruas horizontais
+  for (let j=cj-4;j<=cj+4;j++) {
+    const z=j*GRID;
+
+    for (let x=car.x-500;x<car.x+500;x+=40) {
+      groundRect(
+        x,x+12,
+        z-.25,z+.25,
+        "#d9cb8e"
+      );
+    }
+  }
+}
+
+function drawCrosswalks(ci,cj) {
+  for (let i=ci-1;i<=ci+1;i++) {
+    for (let j=cj-1;j<=cj+1;j++) {
+      const x=i*GRID;
+      const z=j*GRID;
+
+      for (let k=0;k<5;k++) {
+        const offset=k*2;
+
+        // Travessia da rua vertical
+        groundRect(
+          x-ROAD_HALF+3,
+          x+ROAD_HALF-3,
+          z-ROAD_HALF-10+offset,
+          z-ROAD_HALF-9+offset,
+          "#e8e5d8"
+        );
+
+        groundRect(
+          x-ROAD_HALF+3,
+          x+ROAD_HALF-3,
+          z+ROAD_HALF+3+offset,
+          z+ROAD_HALF+4+offset,
+          "#e8e5d8"
+        );
+
+        // Travessia da rua horizontal
+        groundRect(
+          x-ROAD_HALF-10+offset,
+          x-ROAD_HALF-9+offset,
+          z-ROAD_HALF+3,
+          z+ROAD_HALF-3,
+          "#e8e5d8"
+        );
+
+        groundRect(
+          x+ROAD_HALF+3+offset,
+          x+ROAD_HALF+4+offset,
+          z-ROAD_HALF+3,
+          z+ROAD_HALF-3,
+          "#e8e5d8"
+        );
+      }
+    }
+  }
+}
+
+
+/* ============================================================
+   9. CONSTRUÇÕES
+   ============================================================ */
+
+function shade(hex,factor) {
+  const n=parseInt(hex.replace("#",""),16);
+
+  const r=Math.min(255,Math.round(((n>>16)&255)*factor));
+  const g=Math.min(255,Math.round(((n>>8)&255)*factor));
+  const b=Math.min(255,Math.round((n&255)*factor));
+
+  return `rgb(${r},${g},${b})`;
+}
+
+function drawBuilding(box) {
+  const x1=box.x-box.w/2;
+  const x2=box.x+box.w/2;
+  const z1=box.z-box.d/2;
+  const z2=box.z+box.d/2;
+  const h=box.h;
+
+  const A=[x1,0,z1];
+  const B=[x2,0,z1];
+  const C=[x2,0,z2];
+  const D=[x1,0,z2];
+
+  const At=[x1,h,z1];
+  const Bt=[x2,h,z1];
+  const Ct=[x2,h,z2];
+  const Dt=[x1,h,z2];
+
+  const faces=[
+    {points:[A,B,Bt,At],color:shade(box.wall,.79)},
+    {points:[B,C,Ct,Bt],color:shade(box.wall,.66)},
+    {points:[C,D,Dt,Ct],color:shade(box.wall,.86)},
+    {points:[D,A,At,Dt],color:shade(box.wall,.94)},
+    {points:[At,Bt,Ct,Dt],color:box.roof}
+  ];
+
+  // Ordenação das faces por distância média.
+  const ordered=faces.map(face=>{
+    const depths=face.points.map(p=>
+      worldToCamera(p[0],p[1],p[2]).f
+    );
+
+    return {
+      ...face,
+      depth:depths.reduce((a,b)=>a+b,0)/depths.length
+    };
+  }).sort((a,b)=>b.depth-a.depth);
+
+  for (const face of ordered) {
+    drawWorldPolygon(
+      face.points,
+      face.color,
+      "rgba(35,38,35,.35)"
+    );
+  }
+}
+
+
+/* ============================================================
+   10. ÁRVORES
+   ============================================================ */
+
+function drawTree(tree) {
+  const ground=projectPoint(tree.x,0,tree.z);
+  const top=projectPoint(tree.x,7*tree.size,tree.z);
+
+  if (!ground || !top) return;
+
+  const camera=worldToCamera(tree.x,0,tree.z);
+
+  if (camera.f<=NEAR) return;
+
+  const radius=Math.max(
+    2,
+    Math.min(48,5.2*tree.size*focal/camera.f)
+  );
+
+  ctx.strokeStyle="#654a32";
+  ctx.lineWidth=Math.max(1,2.2*focal/camera.f);
+
+  ctx.beginPath();
+  ctx.moveTo(ground.x,ground.y);
+  ctx.lineTo(top.x,top.y);
+  ctx.stroke();
+
+  ctx.fillStyle="#285d39";
+  ctx.beginPath();
+  ctx.arc(top.x,top.y,radius,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.fillStyle="#468d51";
+  ctx.beginPath();
+  ctx.arc(
+    top.x-radius*.25,
+    top.y-radius*.25,
+    radius*.7,
+    0,Math.PI*2
+  );
+  ctx.fill();
+
+  ctx.fillStyle="#70ad69";
+  ctx.beginPath();
+  ctx.arc(
+    top.x+radius*.22,
+    top.y-radius*.35,
+    radius*.34,
+    0,Math.PI*2
+  );
+  ctx.fill();
+}
+
+
+/* ============================================================
+   11. OBJETOS E ELEMENTOS DA CIDADE
+   ============================================================ */
+
+function drawLabel(x,y,z,text) {
+  const p=projectPoint(x,y,z);
+
+  if (!p) return;
+
+  const camera=worldToCamera(x,y,z);
+
+  if (camera.f>800 || p.y<0 || p.y>viewBottom) return;
+
+  const size=Math.max(8,Math.min(15,12*focal/camera.f*.28));
+
+  ctx.font=`bold ${size}px Arial`;
+
+  const width=ctx.measureText(text).width+16;
+  const height=size+9;
+
+  ctx.fillStyle="rgba(21,35,40,.83)";
+  ctx.fillRect(
+    p.x-width/2,
+    p.y-height/2,
+    width,
+    height
+  );
+
+  ctx.fillStyle="#fff7dc";
+  ctx.textAlign="center";
+  ctx.textBaseline="middle";
+  ctx.fillText(text,p.x,p.y);
+}
+
+function collectCityObjects() {
+  const objects=[];
+  const labels=[];
+
+  const ci=Math.floor(car.x/GRID);
+  const cj=Math.floor(car.z/GRID);
+
+  function addBuilding(x,z,w,d,h,wall,roof) {
+    const p=worldToCamera(x,h/2,z);
+
+    if (
+      p.f>-30 &&
+      p.f<950 &&
+      Math.abs(p.s)<900
+    ) {
+      objects.push({
+        type:"building",
+        x,z,w,d,h,wall,roof,
+        depth:p.f
+      });
+    }
+  }
+
+  function addTree(x,z,size=1) {
+    const p=worldToCamera(x,3,z);
+
+    if (
+      p.f>-20 &&
+      p.f<850 &&
+      Math.abs(p.s)<800
+    ) {
+      objects.push({
+        type:"tree",
+        x,z,size,
+        depth:p.f
+      });
+    }
+  }
+
+  for (let i=ci-4;i<=ci+4;i++) {
+    for (let j=cj-4;j<=cj+4;j++) {
+
+      const x0=i*GRID+ROAD_HALF+SIDEWALK+10;
+      const x1=(i+1)*GRID-ROAD_HALF-SIDEWALK-10;
+
+      const z0=j*GRID+ROAD_HALF+SIDEWALK+10;
+      const z1=(j+1)*GRID-ROAD_HALF-SIDEWALK-10;
+
+      const cx=(x0+x1)/2;
+      const cz=(z0+z1)/2;
+
+      const type=cellType(i,j);
+
+      if (type==="park") {
+        const treePositions=[
+          [x0+15,z0+15],
+          [x1-15,z0+15],
+          [x0+15,z1-15],
+          [x1-15,z1-15],
+          [cx-35,cz-32],
+          [cx+35,cz+32],
+          [cx-35,cz+32],
+          [cx+35,cz-32]
+        ];
+
+        for (const point of treePositions) {
+          addTree(point[0],point[1],.95);
+        }
+
+        if (i===0 && j===0) {
+          labels.push({
+            x:cx,y:15,z:cz,
+            text:"PRAÇA CENTRAL"
+          });
+        }
+
+      } else if (type==="market") {
+        addBuilding(
+          cx,cz,
+          88,75,14,
+          "#d9d1ba","#a84d3d"
+        );
+
+        addTree(x0+12,z1-14,.7);
+        addTree(x1-12,z1-14,.7);
+
+        labels.push({
+          x:cx,y:20,z:cz,
+          text:"SUPERMERCADO"
+        });
+
+      } else if (type==="sport") {
+        addBuilding(
+          x1-19,z0+18,
+          27,25,7,
+          "#d2ccb9","#5b7c78"
+        );
+
+        labels.push({
+          x:cx,y:13,z:cz,
+          text:"QUADRA ESPORTIVA"
+        });
+
+      } else if (type==="shops") {
+        const palette=[
+          ["#d8c7a9","#a45d45"],
+          ["#ddd5c0","#71899c"],
+          ["#d8c8ae","#a27b49"]
+        ];
+
+        for (let k=0;k<3;k++) {
+          const x=x0+24+k*39;
+          const c=palette[k];
+
+          addBuilding(
+            x,cz,
+            30,54,10,
+            c[0],c[1]
+          );
+        }
+
+        labels.push({
+          x:cx,y:15,z:cz,
+          text:"COMÉRCIO LOCAL"
+        });
+
+      } else {
+        const palette=[
+          ["#dfcbb0","#a15d4b"],
+          ["#d9d6c2","#74655a"],
+          ["#d5c3a7","#99734e"],
+          ["#d4d8ca","#747d7b"]
+        ];
+
+        const n=Math.abs(i*7+j*11)%palette.length;
+        const c=palette[n];
+
+        addBuilding(
+          x0+28,z0+34,
+          42,38,9,
+          c[0],c[1]
+        );
+
+        addBuilding(
+          x1-28,z1-34,
+          40,36,10,
+          c[0],c[1]
+        );
+
+        addTree(x0+12,z1-13,.65);
+        addTree(x1-12,z0+13,.65);
+      }
+    }
+  }
+
+  // Objetos mais distantes são desenhados primeiro.
+  objects.sort((a,b)=>b.depth-a.depth);
+
+  for (const obj of objects) {
+    if (obj.type==="building") {
+      drawBuilding(obj);
+    } else {
+      drawTree(obj);
+    }
+  }
+
+  for (const label of labels) {
+    drawLabel(label.x,label.y,label.z,label.text);
+  }
+}
+
+
+/* ============================================================
+   12. RENDERIZAÇÃO DO CENÁRIO
+   ============================================================ */
+
+function render() {
+  ctx.clearRect(0,0,W,H);
+
+  // Céu
+  const sky=ctx.createLinearGradient(0,0,0,horizon+40);
+
+  sky.addColorStop(0,"#75a5c9");
+  sky.addColorStop(.65,"#b7cedb");
+  sky.addColorStop(1,"#e4dccb");
+
+  ctx.fillStyle=sky;
+  ctx.fillRect(0,0,W,H);
+
+  // Sol
+  ctx.fillStyle="rgba(255,243,198,.75)";
+  ctx.beginPath();
+  ctx.arc(W*.78,H*.12,24,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.save();
+
+  // Área visível pelo para-brisa.
+  ctx.beginPath();
+  ctx.rect(0,0,W,viewBottom);
+  ctx.clip();
+
+  ctx.fillStyle="#91a984";
+  ctx.fillRect(0,horizon,W,viewBottom-horizon);
+
+  // Ordem de desenho do mundo.
+  drawBlockGround();
+  drawRoads();
+  collectCityObjects();
+
+  // Neblina distante.
+  const fog=ctx.createLinearGradient(0,horizon,0,horizon+100);
+
+  fog.addColorStop(0,"rgba(218,226,219,.18)");
+  fog.addColorStop(1,"rgba(218,226,219,0)");
+
+  ctx.fillStyle=fog;
+  ctx.fillRect(0,horizon,W,100);
+
+  ctx.restore();
+}
+
+
+/* ============================================================
+   13. LOCALIZAÇÃO DO PRÓXIMO CRUZAMENTO
+   ============================================================ */
+
+function nextIntersection() {
+  let nodeX=0;
+  let nodeZ=0;
+  let distance=0;
+
+  const epsilon=.001;
+
+  if (car.heading===0) {
+    nodeX=Math.round(car.x/GRID)*GRID;
+    nodeZ=(Math.floor((car.z+epsilon)/GRID)+1)*GRID;
+    distance=nodeZ-car.z;
+
+  } else if (car.heading===1) {
+    nodeZ=Math.round(car.z/GRID)*GRID;
+    nodeX=(Math.floor((car.x+epsilon)/GRID)+1)*GRID;
+    distance=nodeX-car.x;
+
+  } else if (car.heading===2) {
+    nodeX=Math.round(car.x/GRID)*GRID;
+    nodeZ=(Math.ceil((car.z-epsilon)/GRID)-1)*GRID;
+    distance=car.z-nodeZ;
+
+  } else {
+    nodeZ=Math.round(car.z/GRID)*GRID;
+    nodeX=(Math.ceil((car.x-epsilon)/GRID)-1)*GRID;
+    distance=car.x-nodeX;
+  }
+
+  return {
+    x:nodeX,
+    z:nodeZ,
+    distance:Math.max(0,distance)
+  };
+}
+
+
+/* ============================================================
+   14. MOVIMENTO RETILÍNEO
+   ============================================================ */
+
+function moveStraight(distance) {
+  const d=DIRS[car.heading];
+
+  car.x+=d.x*distance;
+  car.z+=d.z*distance;
+}
+
+
+/* ============================================================
+   15. INÍCIO DE UMA CURVA CIRCULAR
+   ============================================================ */
+
+/*
+  Aqui está a mudança principal.
+
+  A curva não é feita alterando heading instantaneamente.
+  Ela começa com a orientação atual e percorre um arco.
+
+  A posição e o ângulo da câmera são calculados a partir
+  do mesmo progresso angular.
+*/
+
+function startTurn(intersection,sign,radius) {
+  const d=DIRS[car.heading];
+
+  // Vetor lateral à direita do carro.
+  const n={
+    x:d.z,
+    z:-d.x
+  };
+
+  car.turn={
+    sign,
+    radius,
+    progress:0,
+    length:radius*Math.PI/2,
+
+    startX:car.x,
+    startZ:car.z,
+
+    baseYaw:car.yaw,
+    baseHeading:car.heading,
+
+    tx:d.x,
+    tz:d.z,
+
+    nx:n.x,
+    nz:n.z,
+
+    intersection
+  };
+
+  turnRequest=0;
+}
+
+
+/* ============================================================
+   16. PROGRESSO DA CURVA
+   ============================================================ */
+
+function updateTurn(distance) {
+  const turn=car.turn;
+
+  if (!turn) return distance;
+
+  const remaining=turn.length-turn.progress;
+  const step=Math.min(distance,remaining);
+
+  turn.progress+=step;
+
+  const phi=turn.progress/turn.radius;
+
+  /*
+    Equação de um arco circular:
+
+    P = P0 + R sen(phi) T + s R (1-cos(phi)) N
+
+    T é a direção inicial.
+    N é o vetor lateral à direita.
+    s determina a esquerda ou direita.
+  */
+
+  const side=turn.sign;
+  const R=turn.radius;
+
+  car.x=
+    turn.startX+
+    R*Math.sin(phi)*turn.tx+
+    side*R*(1-Math.cos(phi))*turn.nx;
+
+  car.z=
+    turn.startZ+
+    R*Math.sin(phi)*turn.tz+
+    side*R*(1-Math.cos(phi))*turn.nz;
+
+  // A câmera acompanha o arco em rotação contínua.
+  car.yaw=turn.baseYaw+side*phi;
+
+  const leftover=distance-step;
+
+  // Finalização exata da curva de 90 graus.
+  if (turn.progress>=turn.length-.0001) {
+    car.heading=(turn.baseHeading+side+4)%4;
+
+    car.yaw=turn.baseYaw+side*Math.PI/2;
+
+    car.turn=null;
+  }
+
+  return leftover;
+}
+
+
+/* ============================================================
+   17. MOVIMENTO COM CURVAS SEM INTERRUPÇÕES
+   ============================================================ */
+
+function advanceVehicle(distance) {
+  let remaining=distance;
+  let guard=0;
+
+  while (remaining>.00001 && guard<12) {
+    guard++;
+
+    // Se estiver dentro de uma curva, continua o arco.
+    if (car.turn) {
+      remaining=updateTurn(remaining);
+      continue;
+    }
+
+    // Sem solicitação de curva: segue em linha reta.
+    if (turnRequest===0) {
+      moveStraight(remaining);
+      remaining=0;
+      break;
+    }
+
+    const intersection=nextIntersection();
+    const sign=turnRequest;
+
+    /*
+      O ponto de início depende do sentido da curva.
+
+      Direita: R + L antes do cruzamento.
+      Esquerda: R - L antes do cruzamento.
+
+      Isso faz a trajetória terminar exatamente na faixa
+      correta da rua de saída.
+    */
+
+    const triggerDistance=TURN_RADIUS+sign*LANE;
+
+    if (intersection.distance>triggerDistance+.00001) {
+      const toTrigger=intersection.distance-triggerDistance;
+      const step=Math.min(remaining,toTrigger);
+
+      moveStraight(step);
+      remaining-=step;
+
+      continue;
+    }
+
+    const actualRadius=intersection.distance-sign*LANE;
+
+    if (actualRadius>=MIN_TURN_RADIUS) {
+      startTurn(intersection,sign,actualRadius);
+      continue;
+    }
+
+    // Se a curva foi solicitada tarde demais, segue até
+    // o próximo cruzamento, sem fazer um giro brusco.
+    moveStraight(remaining);
+    remaining=0;
+  }
+}
+
+
+/* ============================================================
+   18. FÍSICA SIMPLIFICADA E ATUALIZAÇÃO
+   ============================================================ */
+
+function update(dt) {
+  if (!paused) {
+    if (keys.gas && car.fuel>0) {
+      car.speed+=17*dt;
+    }
+
+    if (keys.brake) {
+      car.speed-=34*dt;
+    }
+
+    if (!keys.gas && !keys.brake) {
+      car.speed-=2.5*dt;
+    }
+
+    car.speed=Math.max(0,Math.min(55,car.speed));
+
+    const movement=
+      (car.speed/3.6)*SPEED_SCALE*dt;
+
+    if (movement>0) {
+      advanceVehicle(movement);
+
+      car.distance+=movement/SPEED_SCALE/1000;
+      car.fuel=Math.max(0,car.fuel-movement*.000025);
+    }
+  }
+
+  updateDashboard(dt);
+}
+
+
+/* ============================================================
+   19. VOLANTE E PAINEL
+   ============================================================ */
+
+function updateDashboard(dt) {
+  document.getElementById("speedNumber").textContent=
+    Math.round(car.speed);
+
+  document.getElementById("fuelNumber").textContent=
+    Math.round(car.fuel);
+
+  document.getElementById("distanceNumber").textContent=
+    car.distance.toFixed(1);
+
+  document.getElementById("gearNumber").textContent="D";
+
+  // Volante acompanha a solicitação e o progresso da curva.
+  let desiredSteering=0;
+
+  if (car.turn) {
+    const p=car.turn.progress/car.turn.length;
+
+    desiredSteering=
+      car.turn.sign*65*Math.sin(Math.PI*p);
+
+  } else if (turnRequest!==0) {
+    desiredSteering=turnRequest*30;
+  }
+
+  steeringDisplay+=
+    (desiredSteering-steeringDisplay)*
+    Math.min(1,dt*5);
+
+  document.getElementById("steeringWheel").style.transform=
+    `rotate(${steeringDisplay}deg)`;
+
+  const message=document.getElementById("turnMessage");
+  const status=document.getElementById("controlStatus");
+
+  if (car.turn) {
+    const percent=Math.round(
+      car.turn.progress/car.turn.length*100
+    );
+
+    message.textContent=
+      "Curva em andamento · "+percent+"%";
+
+    message.style.display="block";
+    status.textContent="Realizando curva suavemente";
+
+  } else if (turnRequest<0) {
+    message.textContent=
+      "↶ Conversão à esquerda programada";
+
+    message.style.display="block";
+    status.textContent="Curva à esquerda";
+
+  } else if (turnRequest>0) {
+    message.textContent=
+      "↷ Conversão à direita programada";
+
+    message.style.display="block";
+    status.textContent="Curva à direita";
+
+  } else {
+    const hit=nextIntersection();
+
+    if (hit.distance<55) {
+      message.textContent=
+        "Cruzamento à frente · use ← ou →";
+
+      message.style.display="block";
+      status.textContent="Aproximando-se do cruzamento";
+
+    } else {
+      message.style.display="none";
+
+      status.textContent=
+        car.speed>1 ? "Em movimento" : "Aguardando partida";
+    }
+  }
+
+  const compass=[
+    "NORTE","LESTE","SUL","OESTE"
+  ][car.heading];
+
+  document.getElementById("location").textContent=
+    "BAIRRO CENTRAL · SENTIDO "+compass;
+}
+
+
+/* ============================================================
+   20. TECLADO
+   ============================================================ */
+
+const keyMap={
+  ArrowUp:"gas",
+  ArrowDown:"brake",
+  ArrowLeft:"left",
+  ArrowRight:"right",
+
+  KeyW:"gas",
+  KeyS:"brake",
+  KeyA:"left",
+  KeyD:"right"
+};
+
+function pressControl(control) {
+  if (keys[control]) return;
+
+  keys[control]=true;
+
+  if (control==="left") {
+    turnRequest=-1;
+  }
+
+  if (control==="right") {
+    turnRequest=1;
+  }
+}
+
+function releaseControl(control) {
+  keys[control]=false;
+}
+
+document.addEventListener("keydown",event=>{
+  if (event.code==="KeyP") {
+    togglePause();
+    return;
+  }
+
+  const control=keyMap[event.code];
+
+  if (control) {
+    event.preventDefault();
+    pressControl(control);
+  }
+});
+
+document.addEventListener("keyup",event=>{
+  const control=keyMap[event.code];
+
+  if (control) {
+    event.preventDefault();
+    releaseControl(control);
+  }
+});
+
+window.addEventListener("blur",()=>{
+  Object.keys(keys).forEach(k=>keys[k]=false);
+});
+
+
+/* ============================================================
+   21. BOTÕES NA TELA
+   ============================================================ */
+
+document.querySelectorAll("[data-control]").forEach(button=>{
+  const control=button.dataset.control;
+
+  button.addEventListener("pointerdown",event=>{
+    event.preventDefault();
+
+    pressControl(control);
+    button.classList.add("active");
+
+    button.setPointerCapture(event.pointerId);
+  });
+
+  function release() {
+    releaseControl(control);
+    button.classList.remove("active");
+  }
+
+  button.addEventListener("pointerup",release);
+  button.addEventListener("pointercancel",release);
+  button.addEventListener("lostpointercapture",release);
+});
+
+
+/* ============================================================
+   22. PAUSA
+   ============================================================ */
+
+function togglePause() {
+  paused=!paused;
+
+  document.getElementById("pause").textContent=
+    paused ? "▶ Continuar" : "Ⅱ Pausar";
+
+  if (paused) {
+    Object.keys(keys).forEach(k=>keys[k]=false);
+  }
+}
+
+document.getElementById("pause").addEventListener(
+  "click",togglePause
+);
+
+
+/* ============================================================
+   23. LOOP PRINCIPAL
+   ============================================================ */
+
+function animationLoop(timestamp) {
+  if (!previousTime) previousTime=timestamp;
+
+  let dt=(timestamp-previousTime)/1000;
+  previousTime=timestamp;
+
+  dt=Math.min(dt,.05);
+
+  update(dt);
+  render();
+
+  requestAnimationFrame(animationLoop);
+}
+
+updateDashboard(0);
+requestAnimationFrame(animationLoop);
+
+</script>
+</body>
+</html>

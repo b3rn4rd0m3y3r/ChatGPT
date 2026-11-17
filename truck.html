@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>truck.html — Simulador de Caminhão Pesado</title>
+<style>
+:root{--bg:#000;--fg:#e9ecf1;--panel:rgba(12,13,16,.72);--line:rgba(255,255,255,.18);--ac:#2fc4b2}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:13px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden;touch-action:none}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+#ui{position:fixed;left:8px;top:calc(8px + env(safe-area-inset-top,0px));display:flex;flex-wrap:wrap;gap:6px;align-items:center;max-width:calc(100% - 16px);z-index:5}
+#ui>*{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:4px 9px;color:var(--fg);backdrop-filter:blur(4px)}
+#ui label,#ui button{cursor:pointer;font:inherit}
+#engineBtn[aria-pressed="false"]{border-color:#d88b45;color:#ffd39b}
+#ui input[type=number]{width:52px;background:transparent;border:0;border-bottom:1px solid var(--line);color:var(--fg);font:inherit;text-align:right}
+#hint{position:fixed;left:50%;top:calc(46px + env(safe-area-inset-top,0px));transform:translateX(-50%);background:var(--panel);border:1px solid var(--line);padding:5px 12px;border-radius:6px;text-align:center;transition:opacity .6s;z-index:5;pointer-events:none}
+#tc{position:fixed;inset:auto 0 calc(10px + env(safe-area-inset-bottom,0px)) 0;display:none;justify-content:space-between;padding:0 12px;z-index:6}
+#tc div{display:flex;gap:10px}
+#tc button{width:64px;height:64px;border-radius:50%;border:1px solid var(--line);background:var(--panel);color:var(--fg);font-size:22px;touch-action:none}
+@media (pointer:coarse){#tc{display:flex}}
+:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+</style>
+</head>
+<body>
+<canvas id="w"></canvas><canvas id="o"></canvas>
+<div id="ui">
+  <span><b>TRUCK — Simulador de Caminhão Pesado</b></span>
+  <label>Mapa da cidade (SVG)<input id="f" type="file" accept="image/*" hidden></label>
+  <label>Áudio diesel <input id="dieselFile" type="file" accept="audio/*" hidden></label>
+  <button id="loadDiesel" type="button">Carregar gravação diesel</button>
+  <label>escala <input id="sc" type="number" step="0.01" min="0.02" value="0.2"> m/px</label>
+  <button id="engineBtn" type="button" aria-pressed="true">Desligar motor</button>
+  <button id="rs" type="button">Reiniciar (R)</button>
+</div>
+<div id="hint">W/↑ acelera · S/↓ freia e seleciona ré parado · A/D ou ←/→ esterçam · E sobe marcha · Q reduz · Espaço freio de estacionamento<br>Simulação de caminhão pesado carregado — 12 marchas manuais</div>
+<div id="tc">
+  <div><button data-k="left" aria-label="Esquerda">◀</button><button data-k="right" aria-label="Direita">▶</button></div>
+  <div><button data-k="down" aria-label="Freio">■</button><button data-k="up" aria-label="Acelerar">▲</button></div>
+</div>
+
+<!-- =====================================================================
+     MAPA: a pista padrão é um SVG vetorial inline. Edite os elementos abaixo
+     (o traçado fica em <path id="p">) e recarregue a página. A engine mais
+     abaixo não sabe nada sobre ela: só recebe uma imagem por loadTrack(url).
+     ===================================================================== -->
+<div id="mapa" hidden>
+<svg id="pista-svg" xmlns="http://www.w3.org/2000/svg" width="3072" height="3072" viewBox="-512 -512 3072 3072">
+<defs>
+<pattern id="grass" width="72" height="72" patternUnits="userSpaceOnUse"><rect width="72" height="72" fill="#568c45"/><path d="M7 12l5 2m28 19l4-2m17 25l5 2M20 57l3-2" stroke="#659b51" stroke-width="2" opacity=".55"/></pattern>
+<pattern id="asphalt" width="96" height="96" patternUnits="userSpaceOnUse"><rect width="96" height="96" fill="#343b40"/><circle cx="12" cy="22" r="1.4" fill="#596168" opacity=".35"/><circle cx="66" cy="70" r="1.2" fill="#687078" opacity=".3"/></pattern>
+<pattern id="pavers" width="28" height="28" patternUnits="userSpaceOnUse"><rect width="28" height="28" fill="#d9d5c9"/><path d="M0 0H28M0 0V28" stroke="#b1ada2" stroke-width="1"/></pattern>
+</defs><rect x="-512" y="-512" width="3072" height="3072" fill="url(#grass)"/>
+<path d="M205 270Q205 160 330 160H1718Q1860 160 1860 300V1730Q1860 1885 1710 1885H330Q190 1885 190 1740Z" fill="#c5c1b5" stroke="#e2dfd4" stroke-width="12"/>
+<path d="M224 278Q224 183 335 183H1712Q1836 183 1836 305V1725Q1836 1860 1707 1860H334Q215 1860 215 1735Z" fill="url(#asphalt)" stroke="#777b78" stroke-width="4"/>
+<path d="M246 290Q246 207 345 207H1704Q1810 207 1810 315V1715Q1810 1835 1698 1835H345Q240 1835 240 1720Z" fill="none" stroke="#eee9d5" stroke-width="5" stroke-dasharray="34 27"/>
+
+<path d="M220 625H1830" stroke="#c8c4b8" stroke-width="150"/><path d="M220 625H1830" stroke="url(#asphalt)" stroke-width="112"/><path d="M230 625H1820" stroke="#e8e2cf" stroke-width="4" stroke-dasharray="30 25"/>
+<path d="M220 1038H1830" stroke="#c8c4b8" stroke-width="150"/><path d="M220 1038H1830" stroke="url(#asphalt)" stroke-width="112"/><path d="M230 1038H1820" stroke="#e8e2cf" stroke-width="4" stroke-dasharray="30 25"/>
+<path d="M220 1455H1830" stroke="#c8c4b8" stroke-width="150"/><path d="M220 1455H1830" stroke="url(#asphalt)" stroke-width="112"/><path d="M230 1455H1820" stroke="#e8e2cf" stroke-width="4" stroke-dasharray="30 25"/>
+<path d="M690 190V1850" stroke="#c8c4b8" stroke-width="150"/><path d="M690 190V1850" stroke="url(#asphalt)" stroke-width="112"/><path d="M690 210V1830" stroke="#e8e2cf" stroke-width="4" stroke-dasharray="30 25"/>
+<path d="M1300 190V1850" stroke="#c8c4b8" stroke-width="150"/><path d="M1300 190V1850" stroke="url(#asphalt)" stroke-width="112"/><path d="M1300 210V1830" stroke="#e8e2cf" stroke-width="4" stroke-dasharray="30 25"/>
+<!-- EXPANSAO URBANA: vias de ligação para as 18 quadras periféricas -->
+<path d="M-500 45H2550" stroke="#c8c4b8" stroke-width="170"/><path d="M-500 45H2550" stroke="url(#asphalt)" stroke-width="126"/><path d="M-500 45H2550" stroke="#e8e2cf" stroke-width="4" stroke-dasharray="30 25"/>
+<path d="M-500 1995H2550" stroke="#c8c4b8" stroke-width="170"/><path d="M-500 1995H2550" stroke="url(#asphalt)" stroke-width="126"/><path d="M-500 1995H2550" stroke="#e8e2cf" stroke-width="4" stroke-dasharray="30 25"/>
+<path d="M75 -500V2550" stroke="#c8c4b8" stroke-width="170"/><path d="M75 -500V2550" stroke="url(#asphalt)" stroke-width="126"/><path d="M75 -500V2550" stroke="#e8e2cf" stroke-width="4" stroke-dasharray="30 25"/>
+<path d="M1995 -500V2550" stroke="#c8c4b8" stroke-width="170"/><path d="M1995 -500V2550" stroke="url(#asphalt)" stroke-width="126"/><path d="M1995 -500V2550" stroke="#e8e2cf" stroke-width="4" stroke-dasharray="30 25"/>
+<!-- 18 quadras novas: 5 superiores/inferiores e 4 em cada lateral -->
+<g class="quadra-expansao"><rect x="-450" y="-440" width="400" height="380" rx="22" fill="#c8c4b8" stroke="#aaa79b" stroke-width="5"/><rect x="-440" y="-430" width="380" height="360" rx="16" fill="#c5c1b5" stroke="#ece8dc" stroke-width="3"/><rect x="-402" y="-384" width="58" height="38" rx="2" fill="#a94d35" stroke="#57483e" stroke-width="2"/><rect x="-394" y="-377" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-368" y="-377" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-297" y="-384" width="58" height="38" rx="2" fill="#65717b" stroke="#57483e" stroke-width="2"/><rect x="-289" y="-377" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-263" y="-377" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-192" y="-384" width="58" height="38" rx="2" fill="#4d7757" stroke="#57483e" stroke-width="2"/><rect x="-184" y="-377" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-158" y="-377" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-402" y="-239" width="58" height="38" rx="2" fill="#65717b" stroke="#57483e" stroke-width="2"/><rect x="-394" y="-232" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-368" y="-232" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-297" y="-239" width="58" height="38" rx="2" fill="#4d7757" stroke="#57483e" stroke-width="2"/><rect x="-289" y="-232" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-263" y="-232" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-192" y="-239" width="58" height="38" rx="2" fill="#a94d35" stroke="#57483e" stroke-width="2"/><rect x="-184" y="-232" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-158" y="-232" width="16" height="12" fill="#d8e4e8" opacity=".85"/></g><g class="quadra-expansao"><rect x="-450" y="2120" width="400" height="380" rx="22" fill="#c8c4b8" stroke="#aaa79b" stroke-width="5"/><rect x="-440" y="2130" width="380" height="360" rx="16" fill="#c5c1b5" stroke="#ece8dc" stroke-width="3"/><rect x="-402" y="2176" width="58" height="38" rx="2" fill="#4d7757" stroke="#57483e" stroke-width="2"/><rect x="-394" y="2183" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-368" y="2183" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-297" y="2176" width="58" height="38" rx="2" fill="#a94d35" stroke="#57483e" stroke-width="2"/><rect x="-289" y="2183" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-263" y="2183" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-192" y="2176" width="58" height="38" rx="2" fill="#65717b" stroke="#57483e" stroke-width="2"/><rect x="-184" y="2183" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-158" y="2183" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-402" y="2321" width="58" height="38" rx="2" fill="#a94d35" stroke="#57483e" stroke-width="2"/><rect x="-394" y="2328" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-368" y="2328" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-297" y="2321" width="58" height="38" rx="2" fill="#65717b" stroke="#57483e" stroke-width="2"/><rect x="-289" y="2328" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-263" y="2328" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-192" y="2321" width="58" height="38" rx="2" fill="#4d7757" stroke="#57483e" stroke-width="2"/><rect x="-184" y="2328" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-158" y="2328" width="16" height="12" fill="#d8e4e8" opacity=".85"/></g><g class="quadra-expansao"><rect x="270" y="-440" width="360" height="380" rx="22" fill="#c8c4b8" stroke="#aaa79b" stroke-width="5"/><rect x="280" y="-430" width="340" height="360" rx="16" fill="#c5c1b5" stroke="#ece8dc" stroke-width="3"/><rect x="318" y="-384" width="58" height="38" rx="2" fill="#65717b" stroke="#57483e" stroke-width="2"/><rect x="326" y="-377" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="352" y="-377" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="423" y="-384" width="58" height="38" rx="2" fill="#4d7757" stroke="#57483e" stroke-width="2"/><rect x="431" y="-377" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="457" y="-377" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="528" y="-384" width="58" height="38" rx="2" fill="#a94d35" stroke="#57483e" stroke-width="2"/><rect x="536" y="-377" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="562" y="-377" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="318" y="-239" width="58" height="38" rx="2" fill="#4d7757" stroke="#57483e" stroke-width="2"/><rect x="326" y="-232" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="352" y="-232" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="423" y="-239" width="58" height="38" rx="2" fill="#a94d35" stroke="#57483e" stroke-width="2"/><rect x="431" y="-232" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="457" y="-232" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="528" y="-239" width="58" height="38" rx="2" fill="#65717b" stroke="#57483e" stroke-width="2"/><rect x="536" y="-232" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="562" y="-232" width="16" height="12" fill="#d8e4e8" opacity=".85"/></g><g class="quadra-expansao"><rect x="270" y="2120" width="360" height="380" rx="22" fill="#c8c4b8" stroke="#aaa79b" stroke-width="5"/><rect x="280" y="2130" width="340" height="360" rx="16" fill="#c5c1b5" stroke="#ece8dc" stroke-width="3"/><rect x="318" y="2176" width="58" height="38" rx="2" fill="#a94d35" stroke="#57483e" stroke-width="2"/><rect x="326" y="2183" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="352" y="2183" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="423" y="2176" width="58" height="38" rx="2" fill="#65717b" stroke="#57483e" stroke-width="2"/><rect x="431" y="2183" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="457" y="2183" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="528" y="2176" width="58" height="38" rx="2" fill="#4d7757" stroke="#57483e" stroke-width="2"/><rect x="536" y="2183" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="562" y="2183" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="318" y="2321" width="58" height="38" rx="2" fill="#65717b" stroke="#57483e" stroke-width="2"/><rect x="326" y="2328" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="352" y="2328" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="423" y="2321" width="58" height="38" rx="2" fill="#4d7757" stroke="#57483e" stroke-width="2"/><rect x="431" y="2328" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="457" y="2328" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="528" y="2321" width="58" height="38" rx="2" fill="#a94d35" stroke="#57483e" stroke-width="2"/><rect x="536" y="2328" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="562" y="2328" width="16" height="12" fill="#d8e4e8" opacity=".85"/></g><g class="quadra-expansao"><rect x="750" y="-440" width="490" height="380" rx="22" fill="#c8c4b8" stroke="#aaa79b" stroke-width="5"/><rect x="760" y="-430" width="470" height="360" rx="16" fill="#c5c1b5" stroke="#ece8dc" stroke-width="3"/><rect x="798" y="-384" width="58" height="38" rx="2" fill="#4d7757" stroke="#57483e" stroke-width="2"/><rect x="806" y="-377" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="832" y="-377" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="903" y="-384" width="58" height="38" rx="2" fill="#a94d35" stroke="#57483e" stroke-width="2"/><rect x="911" y="-377" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="937" y="-377" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="1008" y="-384" width="58" height="38" rx="2" fill="#65717b" stroke="#57483e" stroke-width="2"/><rect x="1016" y="-377" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="1042" y="-377" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="798" y="-239" width="58" height="38" rx="2" fill="#a94d35" stroke="#57483e" stroke-width="2"/><rect x="806" y="-232" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="832" y="-232" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="903" y="-239" width="58" height="38" rx="2" fill="#65717b" stroke="#57483e" stroke-width="2"/><rect x="911" y="-232" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="937" y="-232" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="1008" y="-239" width="58" height="38" rx="2" fill="#4d7757" stroke="#57483e" stroke-width="2"/><rect x="1016" y="-232" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="1042" y="-232" width="16" height="12" fill="#d8e4e8" opacity=".85"/></g><g class="quadra-expansao"><rect x="750" y="2120" width="490" height="380" rx="22" fill="#c8c4b8" stroke="#aaa79b" stroke-width="5"/><rect x="760" y="2130" width="470" height="360" rx="16" fill="#c5c1b5" stroke="#ece8dc" stroke-width="3"/><rect x="798" y="2176" width="58" height="38" rx="2" fill="#65717b" stroke="#57483e" stroke-width="2"/><rect x="806" y="2183" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="832" y="2183" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="903" y="2176" width="58" height="38" rx="2" fill="#4d7757" stroke="#57483e" stroke-width="2"/><rect x="911" y="2183" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="937" y="2183" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="1008" y="2176" width="58" height="38" rx="2" fill="#a94d35" stroke="#57483e" stroke-width="2"/><rect x="1016" y="2183" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="1042" y="2183" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="798" y="2321" width="58" height="38" rx="2" fill="#4d7757" stroke="#57483e" stroke-width="2"/><rect x="806" y="2328" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="832" y="2328" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="903" y="2321" width="58" height="38" rx="2" fill="#a94d35" stroke="#57483e" stroke-width="2"/><rect x="911" y="2328" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="937" y="2328" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="1008" y="2321" width="58" height="38" rx="2" fill="#65717b" stroke="#57483e" stroke-width="2"/><rect x="1016" y="2328" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="1042" y="2328" width="16" height="12" fill="#d8e4e8" opacity=".85"/></g><g class="quadra-expansao"><rect x="1360" y="-440" width="400" height="380" rx="22" fill="#c8c4b8" stroke="#aaa79b" stroke-width="5"/><rect x="1370" y="-430" width="380" height="360" rx="16" fill="#c5c1b5" stroke="#ece8dc" stroke-width="3"/><rect x="1408" y="-384" width="58" height="38" rx="2" fill="#a94d35" stroke="#57483e" stroke-width="2"/><rect x="1416" y="-377" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="1442" y="-377" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="1513" y="-384" width="58" height="38" rx="2" fill="#65717b" stroke="#57483e" stroke-width="2"/><rect x="1521" y="-377" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="1547" y="-377" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="1618" y="-384" width="58" height="38" rx="2" fill="#4d7757" stroke="#57483e" stroke-width="2"/><rect x="1626" y="-377" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="1652" y="-377" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="1408" y="-239" width="58" height="38" rx="2" fill="#65717b" stroke="#57483e" stroke-width="2"/><rect x="1416" y="-232" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="1442" y="-232" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="1513" y="-239" width="58" height="38" rx="2" fill="#4d7757" stroke="#57483e" stroke-width="2"/><rect x="1521" y="-232" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="1547" y="-232" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="1618" y="-239" width="58" height="38" rx="2" fill="#a94d35" stroke="#57483e" stroke-width="2"/><rect x="1626" y="-232" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="1652" y="-232" width="16" height="12" fill="#d8e4e8" opacity=".85"/></g><g class="quadra-expansao"><rect x="1360" y="2120" width="400" height="380" rx="22" fill="#c8c4b8" stroke="#aaa79b" stroke-width="5"/><rect x="1370" y="2130" width="380" height="360" rx="16" fill="#c5c1b5" stroke="#ece8dc" stroke-width="3"/><rect x="1408" y="2176" width="58" height="38" rx="2" fill="#4d7757" stroke="#57483e" stroke-width="2"/><rect x="1416" y="2183" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="1442" y="2183" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="1513" y="2176" width="58" height="38" rx="2" fill="#a94d35" stroke="#57483e" stroke-width="2"/><rect x="1521" y="2183" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="1547" y="2183" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="1618" y="2176" width="58" height="38" rx="2" fill="#65717b" stroke="#57483e" stroke-width="2"/><rect x="1626" y="2183" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="1652" y="2183" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="1408" y="2321" width="58" height="38" rx="2" fill="#a94d35" stroke="#57483e" stroke-width="2"/><rect x="1416" y="2328" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="1442" y="2328" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="1513" y="2321" width="58" height="38" rx="2" fill="#65717b" stroke="#57483e" stroke-width="2"/><rect x="1521" y="2328" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="1547" y="2328" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="1618" y="2321" width="58" height="38" rx="2" fill="#4d7757" stroke="#57483e" stroke-width="2"/><rect x="1626" y="2328" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="1652" y="2328" width="16" height="12" fill="#d8e4e8" opacity=".85"/></g><g class="quadra-expansao"><rect x="2120" y="-440" width="400" height="380" rx="22" fill="#c8c4b8" stroke="#aaa79b" stroke-width="5"/><rect x="2130" y="-430" width="380" height="360" rx="16" fill="#c5c1b5" stroke="#ece8dc" stroke-width="3"/><rect x="2168" y="-384" width="58" height="38" rx="2" fill="#65717b" stroke="#57483e" stroke-width="2"/><rect x="2176" y="-377" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2202" y="-377" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2273" y="-384" width="58" height="38" rx="2" fill="#4d7757" stroke="#57483e" stroke-width="2"/><rect x="2281" y="-377" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2307" y="-377" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2378" y="-384" width="58" height="38" rx="2" fill="#a94d35" stroke="#57483e" stroke-width="2"/><rect x="2386" y="-377" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2412" y="-377" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2168" y="-239" width="58" height="38" rx="2" fill="#4d7757" stroke="#57483e" stroke-width="2"/><rect x="2176" y="-232" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2202" y="-232" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2273" y="-239" width="58" height="38" rx="2" fill="#a94d35" stroke="#57483e" stroke-width="2"/><rect x="2281" y="-232" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2307" y="-232" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2378" y="-239" width="58" height="38" rx="2" fill="#65717b" stroke="#57483e" stroke-width="2"/><rect x="2386" y="-232" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2412" y="-232" width="16" height="12" fill="#d8e4e8" opacity=".85"/></g><g class="quadra-expansao"><rect x="2120" y="2120" width="400" height="380" rx="22" fill="#c8c4b8" stroke="#aaa79b" stroke-width="5"/><rect x="2130" y="2130" width="380" height="360" rx="16" fill="#c5c1b5" stroke="#ece8dc" stroke-width="3"/><rect x="2168" y="2176" width="58" height="38" rx="2" fill="#a94d35" stroke="#57483e" stroke-width="2"/><rect x="2176" y="2183" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2202" y="2183" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2273" y="2176" width="58" height="38" rx="2" fill="#65717b" stroke="#57483e" stroke-width="2"/><rect x="2281" y="2183" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2307" y="2183" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2378" y="2176" width="58" height="38" rx="2" fill="#4d7757" stroke="#57483e" stroke-width="2"/><rect x="2386" y="2183" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2412" y="2183" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2168" y="2321" width="58" height="38" rx="2" fill="#65717b" stroke="#57483e" stroke-width="2"/><rect x="2176" y="2328" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2202" y="2328" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2273" y="2321" width="58" height="38" rx="2" fill="#4d7757" stroke="#57483e" stroke-width="2"/><rect x="2281" y="2328" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2307" y="2328" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2378" y="2321" width="58" height="38" rx="2" fill="#a94d35" stroke="#57483e" stroke-width="2"/><rect x="2386" y="2328" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2412" y="2328" width="16" height="12" fill="#d8e4e8" opacity=".85"/></g><g class="quadra-expansao"><rect x="-450" y="130" width="400" height="400" rx="22" fill="#c8c4b8" stroke="#aaa79b" stroke-width="5"/><rect x="-440" y="140" width="380" height="380" rx="16" fill="#c5c1b5" stroke="#ece8dc" stroke-width="3"/><rect x="-402" y="186" width="58" height="38" rx="2" fill="#65717b" stroke="#57483e" stroke-width="2"/><rect x="-394" y="193" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-368" y="193" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-297" y="186" width="58" height="38" rx="2" fill="#4d7757" stroke="#57483e" stroke-width="2"/><rect x="-289" y="193" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-263" y="193" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-192" y="186" width="58" height="38" rx="2" fill="#a94d35" stroke="#57483e" stroke-width="2"/><rect x="-184" y="193" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-158" y="193" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-402" y="331" width="58" height="38" rx="2" fill="#4d7757" stroke="#57483e" stroke-width="2"/><rect x="-394" y="338" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-368" y="338" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-297" y="331" width="58" height="38" rx="2" fill="#a94d35" stroke="#57483e" stroke-width="2"/><rect x="-289" y="338" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-263" y="338" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-192" y="331" width="58" height="38" rx="2" fill="#65717b" stroke="#57483e" stroke-width="2"/><rect x="-184" y="338" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-158" y="338" width="16" height="12" fill="#d8e4e8" opacity=".85"/></g><g class="quadra-expansao"><rect x="2120" y="130" width="400" height="400" rx="22" fill="#c8c4b8" stroke="#aaa79b" stroke-width="5"/><rect x="2130" y="140" width="380" height="380" rx="16" fill="#c5c1b5" stroke="#ece8dc" stroke-width="3"/><rect x="2168" y="186" width="58" height="38" rx="2" fill="#4d7757" stroke="#57483e" stroke-width="2"/><rect x="2176" y="193" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2202" y="193" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2273" y="186" width="58" height="38" rx="2" fill="#a94d35" stroke="#57483e" stroke-width="2"/><rect x="2281" y="193" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2307" y="193" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2378" y="186" width="58" height="38" rx="2" fill="#65717b" stroke="#57483e" stroke-width="2"/><rect x="2386" y="193" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2412" y="193" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2168" y="331" width="58" height="38" rx="2" fill="#a94d35" stroke="#57483e" stroke-width="2"/><rect x="2176" y="338" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2202" y="338" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2273" y="331" width="58" height="38" rx="2" fill="#65717b" stroke="#57483e" stroke-width="2"/><rect x="2281" y="338" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2307" y="338" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2378" y="331" width="58" height="38" rx="2" fill="#4d7757" stroke="#57483e" stroke-width="2"/><rect x="2386" y="338" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2412" y="338" width="16" height="12" fill="#d8e4e8" opacity=".85"/></g><g class="quadra-expansao"><rect x="-450" y="710" width="400" height="400" rx="22" fill="#c8c4b8" stroke="#aaa79b" stroke-width="5"/><rect x="-440" y="720" width="380" height="380" rx="16" fill="#c5c1b5" stroke="#ece8dc" stroke-width="3"/><rect x="-402" y="766" width="58" height="38" rx="2" fill="#4d7757" stroke="#57483e" stroke-width="2"/><rect x="-394" y="773" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-368" y="773" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-297" y="766" width="58" height="38" rx="2" fill="#a94d35" stroke="#57483e" stroke-width="2"/><rect x="-289" y="773" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-263" y="773" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-192" y="766" width="58" height="38" rx="2" fill="#65717b" stroke="#57483e" stroke-width="2"/><rect x="-184" y="773" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-158" y="773" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-402" y="911" width="58" height="38" rx="2" fill="#a94d35" stroke="#57483e" stroke-width="2"/><rect x="-394" y="918" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-368" y="918" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-297" y="911" width="58" height="38" rx="2" fill="#65717b" stroke="#57483e" stroke-width="2"/><rect x="-289" y="918" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-263" y="918" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-192" y="911" width="58" height="38" rx="2" fill="#4d7757" stroke="#57483e" stroke-width="2"/><rect x="-184" y="918" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-158" y="918" width="16" height="12" fill="#d8e4e8" opacity=".85"/></g><g class="quadra-expansao"><rect x="2120" y="710" width="400" height="400" rx="22" fill="#c8c4b8" stroke="#aaa79b" stroke-width="5"/><rect x="2130" y="720" width="380" height="380" rx="16" fill="#c5c1b5" stroke="#ece8dc" stroke-width="3"/><rect x="2168" y="766" width="58" height="38" rx="2" fill="#a94d35" stroke="#57483e" stroke-width="2"/><rect x="2176" y="773" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2202" y="773" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2273" y="766" width="58" height="38" rx="2" fill="#65717b" stroke="#57483e" stroke-width="2"/><rect x="2281" y="773" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2307" y="773" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2378" y="766" width="58" height="38" rx="2" fill="#4d7757" stroke="#57483e" stroke-width="2"/><rect x="2386" y="773" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2412" y="773" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2168" y="911" width="58" height="38" rx="2" fill="#65717b" stroke="#57483e" stroke-width="2"/><rect x="2176" y="918" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2202" y="918" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2273" y="911" width="58" height="38" rx="2" fill="#4d7757" stroke="#57483e" stroke-width="2"/><rect x="2281" y="918" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2307" y="918" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2378" y="911" width="58" height="38" rx="2" fill="#a94d35" stroke="#57483e" stroke-width="2"/><rect x="2386" y="918" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2412" y="918" width="16" height="12" fill="#d8e4e8" opacity=".85"/></g><g class="quadra-expansao"><rect x="-450" y="1290" width="400" height="400" rx="22" fill="#c8c4b8" stroke="#aaa79b" stroke-width="5"/><rect x="-440" y="1300" width="380" height="380" rx="16" fill="#c5c1b5" stroke="#ece8dc" stroke-width="3"/><rect x="-402" y="1346" width="58" height="38" rx="2" fill="#a94d35" stroke="#57483e" stroke-width="2"/><rect x="-394" y="1353" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-368" y="1353" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-297" y="1346" width="58" height="38" rx="2" fill="#65717b" stroke="#57483e" stroke-width="2"/><rect x="-289" y="1353" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-263" y="1353" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-192" y="1346" width="58" height="38" rx="2" fill="#4d7757" stroke="#57483e" stroke-width="2"/><rect x="-184" y="1353" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-158" y="1353" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-402" y="1491" width="58" height="38" rx="2" fill="#65717b" stroke="#57483e" stroke-width="2"/><rect x="-394" y="1498" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-368" y="1498" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-297" y="1491" width="58" height="38" rx="2" fill="#4d7757" stroke="#57483e" stroke-width="2"/><rect x="-289" y="1498" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-263" y="1498" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-192" y="1491" width="58" height="38" rx="2" fill="#a94d35" stroke="#57483e" stroke-width="2"/><rect x="-184" y="1498" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-158" y="1498" width="16" height="12" fill="#d8e4e8" opacity=".85"/></g><g class="quadra-expansao"><rect x="2120" y="1290" width="400" height="400" rx="22" fill="#c8c4b8" stroke="#aaa79b" stroke-width="5"/><rect x="2130" y="1300" width="380" height="380" rx="16" fill="#c5c1b5" stroke="#ece8dc" stroke-width="3"/><rect x="2168" y="1346" width="58" height="38" rx="2" fill="#65717b" stroke="#57483e" stroke-width="2"/><rect x="2176" y="1353" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2202" y="1353" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2273" y="1346" width="58" height="38" rx="2" fill="#4d7757" stroke="#57483e" stroke-width="2"/><rect x="2281" y="1353" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2307" y="1353" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2378" y="1346" width="58" height="38" rx="2" fill="#a94d35" stroke="#57483e" stroke-width="2"/><rect x="2386" y="1353" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2412" y="1353" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2168" y="1491" width="58" height="38" rx="2" fill="#4d7757" stroke="#57483e" stroke-width="2"/><rect x="2176" y="1498" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2202" y="1498" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2273" y="1491" width="58" height="38" rx="2" fill="#a94d35" stroke="#57483e" stroke-width="2"/><rect x="2281" y="1498" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2307" y="1498" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2378" y="1491" width="58" height="38" rx="2" fill="#65717b" stroke="#57483e" stroke-width="2"/><rect x="2386" y="1498" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2412" y="1498" width="16" height="12" fill="#d8e4e8" opacity=".85"/></g><g class="quadra-expansao"><rect x="-450" y="1870" width="400" height="400" rx="22" fill="#c8c4b8" stroke="#aaa79b" stroke-width="5"/><rect x="-440" y="1880" width="380" height="380" rx="16" fill="#c5c1b5" stroke="#ece8dc" stroke-width="3"/><rect x="-402" y="1926" width="58" height="38" rx="2" fill="#65717b" stroke="#57483e" stroke-width="2"/><rect x="-394" y="1933" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-368" y="1933" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-297" y="1926" width="58" height="38" rx="2" fill="#4d7757" stroke="#57483e" stroke-width="2"/><rect x="-289" y="1933" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-263" y="1933" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-192" y="1926" width="58" height="38" rx="2" fill="#a94d35" stroke="#57483e" stroke-width="2"/><rect x="-184" y="1933" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-158" y="1933" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-402" y="2071" width="58" height="38" rx="2" fill="#4d7757" stroke="#57483e" stroke-width="2"/><rect x="-394" y="2078" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-368" y="2078" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-297" y="2071" width="58" height="38" rx="2" fill="#a94d35" stroke="#57483e" stroke-width="2"/><rect x="-289" y="2078" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-263" y="2078" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-192" y="2071" width="58" height="38" rx="2" fill="#65717b" stroke="#57483e" stroke-width="2"/><rect x="-184" y="2078" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="-158" y="2078" width="16" height="12" fill="#d8e4e8" opacity=".85"/></g><g class="quadra-expansao"><rect x="2120" y="1870" width="400" height="400" rx="22" fill="#c8c4b8" stroke="#aaa79b" stroke-width="5"/><rect x="2130" y="1880" width="380" height="380" rx="16" fill="#c5c1b5" stroke="#ece8dc" stroke-width="3"/><rect x="2168" y="1926" width="58" height="38" rx="2" fill="#4d7757" stroke="#57483e" stroke-width="2"/><rect x="2176" y="1933" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2202" y="1933" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2273" y="1926" width="58" height="38" rx="2" fill="#a94d35" stroke="#57483e" stroke-width="2"/><rect x="2281" y="1933" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2307" y="1933" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2378" y="1926" width="58" height="38" rx="2" fill="#65717b" stroke="#57483e" stroke-width="2"/><rect x="2386" y="1933" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2412" y="1933" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2168" y="2071" width="58" height="38" rx="2" fill="#a94d35" stroke="#57483e" stroke-width="2"/><rect x="2176" y="2078" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2202" y="2078" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2273" y="2071" width="58" height="38" rx="2" fill="#65717b" stroke="#57483e" stroke-width="2"/><rect x="2281" y="2078" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2307" y="2078" width="16" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2378" y="2071" width="58" height="38" rx="2" fill="#4d7757" stroke="#57483e" stroke-width="2"/><rect x="2386" y="2078" width="17" height="12" fill="#d8e4e8" opacity=".85"/><rect x="2412" y="2078" width="16" height="12" fill="#d8e4e8" opacity=".85"/></g>
+<rect x="270" y="260" width="360" height="310" rx="24" fill="#d4d0c3" stroke="#aaa79b" stroke-width="5"/><rect x="280" y="270" width="340" height="290" rx="18" fill="#c5c1b5" stroke="#ece8dc" stroke-width="3"/>
+<rect x="750" y="260" width="490" height="310" rx="24" fill="#d4d0c3" stroke="#aaa79b" stroke-width="5"/><rect x="760" y="270" width="470" height="290" rx="18" fill="#c5c1b5" stroke="#ece8dc" stroke-width="3"/>
+<rect x="1360" y="260" width="400" height="310" rx="24" fill="#d4d0c3" stroke="#aaa79b" stroke-width="5"/><rect x="1370" y="270" width="380" height="290" rx="18" fill="#c5c1b5" stroke="#ece8dc" stroke-width="3"/>
+<rect x="270" y="690" width="360" height="290" rx="24" fill="#d4d0c3" stroke="#aaa79b" stroke-width="5"/><rect x="280" y="700" width="340" height="270" rx="18" fill="#c5c1b5" stroke="#ece8dc" stroke-width="3"/>
+<rect x="750" y="690" width="490" height="290" rx="24" fill="#d4d0c3" stroke="#aaa79b" stroke-width="5"/><rect x="760" y="700" width="470" height="270" rx="18" fill="#c5c1b5" stroke="#ece8dc" stroke-width="3"/>
+<rect x="1360" y="690" width="400" height="290" rx="24" fill="#d4d0c3" stroke="#aaa79b" stroke-width="5"/><rect x="1370" y="700" width="380" height="270" rx="18" fill="#c5c1b5" stroke="#ece8dc" stroke-width="3"/>
+<rect x="270" y="1100" width="360" height="290" rx="24" fill="#d4d0c3" stroke="#aaa79b" stroke-width="5"/><rect x="280" y="1110" width="340" height="270" rx="18" fill="#c5c1b5" stroke="#ece8dc" stroke-width="3"/>
+<rect x="750" y="1100" width="490" height="290" rx="24" fill="#d4d0c3" stroke="#aaa79b" stroke-width="5"/><rect x="760" y="1110" width="470" height="270" rx="18" fill="#c5c1b5" stroke="#ece8dc" stroke-width="3"/>
+<rect x="1360" y="1100" width="400" height="290" rx="24" fill="#d4d0c3" stroke="#aaa79b" stroke-width="5"/><rect x="1370" y="1110" width="380" height="270" rx="18" fill="#c5c1b5" stroke="#ece8dc" stroke-width="3"/>
+<rect x="270" y="1510" width="360" height="290" rx="24" fill="#d4d0c3" stroke="#aaa79b" stroke-width="5"/><rect x="280" y="1520" width="340" height="270" rx="18" fill="#c5c1b5" stroke="#ece8dc" stroke-width="3"/>
+<rect x="750" y="1510" width="490" height="290" rx="24" fill="#d4d0c3" stroke="#aaa79b" stroke-width="5"/><rect x="760" y="1520" width="470" height="270" rx="18" fill="#c5c1b5" stroke="#ece8dc" stroke-width="3"/>
+<rect x="1360" y="1510" width="400" height="290" rx="24" fill="#d4d0c3" stroke="#aaa79b" stroke-width="5"/><rect x="1370" y="1520" width="380" height="270" rx="18" fill="#c5c1b5" stroke="#ece8dc" stroke-width="3"/>
+<g><rect x="292" y="278" width="316" height="270" rx="8" fill="#3e8b4d" stroke="#f3f0dd" stroke-width="5"/><path d="M450 280V546M294 413H606" stroke="#e8f0d8" stroke-width="3"/><circle cx="450" cy="413" r="37" fill="none" stroke="#e8f0d8" stroke-width="3"/><rect x="293" y="360" width="40" height="106" fill="none" stroke="#e8f0d8" stroke-width="3"/><rect x="568" y="360" width="40" height="106" fill="none" stroke="#e8f0d8" stroke-width="3"/></g>
+<g><rect x="770" y="710" width="450" height="250" rx="34" fill="#4b9650" stroke="#b5b09e" stroke-width="9"/><path d="M795 835H1195M995 735V935" stroke="#d9c9a2" stroke-width="22"/><circle cx="995" cy="835" r="44" fill="#d6c79c" stroke="#8e9d63" stroke-width="5"/><circle cx="995" cy="835" r="25" fill="#4d9b54"/></g>
+<g><rect x="775" y="1530" width="440" height="250" rx="34" fill="#d9d5c9" stroke="#aaa596" stroke-width="7"/><rect x="795" y="1550" width="400" height="210" rx="25" fill="url(#pavers)"/><circle cx="995" cy="1655" r="43" fill="#6b9c53" stroke="#e4e0d4" stroke-width="8"/><circle cx="995" cy="1655" r="17" fill="#9ec16a"/></g>
+<g id="arvores">
+<g class="arvore" data-tipo="copa" data-tam="1.05" transform="translate(330 300)"><circle r="10" fill="#24672c"/></g>
+<g class="arvore" data-tipo="copa" data-tam="1.05" transform="translate(570 300)"><circle r="10" fill="#24672c"/></g>
+<g class="arvore" data-tipo="copa" data-tam="1.05" transform="translate(330 520)"><circle r="10" fill="#24672c"/></g>
+<g class="arvore" data-tipo="copa" data-tam="1.05" transform="translate(570 520)"><circle r="10" fill="#24672c"/></g>
+<g class="arvore" data-tipo="copa" data-tam="1.05" transform="translate(800 300)"><circle r="10" fill="#24672c"/></g>
+<g class="arvore" data-tipo="copa" data-tam="1.05" transform="translate(1200 300)"><circle r="10" fill="#24672c"/></g>
+<g class="arvore" data-tipo="copa" data-tam="1.05" transform="translate(800 550)"><circle r="10" fill="#24672c"/></g>
+<g class="arvore" data-tipo="copa" data-tam="1.05" transform="translate(1200 550)"><circle r="10" fill="#24672c"/></g>
+<g class="arvore" data-tipo="copa" data-tam="1.05" transform="translate(1410 300)"><circle r="10" fill="#24672c"/></g>
+<g class="arvore" data-tipo="copa" data-tam="1.05" transform="translate(1730 300)"><circle r="10" fill="#24672c"/></g>
+<g class="arvore" data-tipo="copa" data-tam="1.05" transform="translate(1410 550)"><circle r="10" fill="#24672c"/></g>
+<g class="arvore" data-tipo="copa" data-tam="1.05" transform="translate(1730 550)"><circle r="10" fill="#24672c"/></g>
+<g class="arvore" data-tipo="copa" data-tam="1.05" transform="translate(310 740)"><circle r="10" fill="#24672c"/></g>
+<g class="arvore" data-tipo="copa" data-tam="1.05" transform="translate(600 740)"><circle r="10" fill="#24672c"/></g>
+<g class="arvore" data-tipo="copa" data-tam="1.05" transform="translate(310 930)"><circle r="10" fill="#24672c"/></g>
+<g class="arvore" data-tipo="copa" data-tam="1.05" transform="translate(600 930)"><circle r="10" fill="#24672c"/></g>
+<g class="arvore" data-tipo="copa" data-tam="1.05" transform="translate(1410 740)"><circle r="10" fill="#24672c"/></g>
+<g class="arvore" data-tipo="copa" data-tam="1.05" transform="translate(1730 740)"><circle r="10" fill="#24672c"/></g>
+<g class="arvore" data-tipo="copa" data-tam="1.05" transform="translate(1410 930)"><circle r="10" fill="#24672c"/></g>
+<g class="arvore" data-tipo="copa" data-tam="1.05" transform="translate(1730 930)"><circle r="10" fill="#24672c"/></g>
+<g class="arvore" data-tipo="copa" data-tam="1.05" transform="translate(310 1140)"><circle r="10" fill="#24672c"/></g>
+<g class="arvore" data-tipo="copa" data-tam="1.05" transform="translate(600 1140)"><circle r="10" fill="#24672c"/></g>
+<g class="arvore" data-tipo="copa" data-tam="1.05" transform="translate(310 1360)"><circle r="10" fill="#24672c"/></g>
+<g class="arvore" data-tipo="copa" data-tam="1.05" transform="translate(600 1360)"><circle r="10" fill="#24672c"/></g>
+<g class="arvore" data-tipo="copa" data-tam="1.05" transform="translate(800 1140)"><circle r="10" fill="#24672c"/></g>
+<g class="arvore" data-tipo="copa" data-tam="1.05" transform="translate(1200 1140)"><circle r="10" fill="#24672c"/></g>
+<g class="arvore" data-tipo="copa" data-tam="1.05" transform="translate(800 1360)"><circle r="10" fill="#24672c"/></g>
+<g class="arvore" data-tipo="copa" data-tam="1.05" transform="translate(1200 1360)"><circle r="10" fill="#24672c"/></g>
+<g class="arvore" data-tipo="copa" data-tam="1.05" transform="translate(1410 1140)"><circle r="10" fill="#24672c"/></g>
+<g class="arvore" data-tipo="copa" data-tam="1.05" transform="translate(1730 1140)"><circle r="10" fill="#24672c"/></g>
+<g class="arvore" data-tipo="copa" data-tam="1.05" transform="translate(1410 1360)"><circle r="10" fill="#24672c"/></g>
+<g class="arvore" data-tipo="copa" data-tam="1.05" transform="translate(1730 1360)"><circle r="10" fill="#24672c"/></g>
+<g class="arvore" data-tipo="copa" data-tam="1.05" transform="translate(310 1550)"><circle r="10" fill="#24672c"/></g>
+<g class="arvore" data-tipo="copa" data-tam="1.05" transform="translate(600 1550)"><circle r="10" fill="#24672c"/></g>
+<g class="arvore" data-tipo="copa" data-tam="1.05" transform="translate(310 1760)"><circle r="10" fill="#24672c"/></g>
+<g class="arvore" data-tipo="copa" data-tam="1.05" transform="translate(600 1760)"><circle r="10" fill="#24672c"/></g>
+<g class="arvore" data-tipo="copa" data-tam="1.05" transform="translate(1410 1550)"><circle r="10" fill="#24672c"/></g>
+<g class="arvore" data-tipo="copa" data-tam="1.05" transform="translate(1730 1550)"><circle r="10" fill="#24672c"/></g>
+<g class="arvore" data-tipo="copa" data-tam="1.05" transform="translate(1410 1760)"><circle r="10" fill="#24672c"/></g>
+<g class="arvore" data-tipo="copa" data-tam="1.05" transform="translate(1730 1760)"><circle r="10" fill="#24672c"/></g>
+</g>
+<g id="iluminacao-publica">
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(270 558)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(270 692)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(500 558)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(500 692)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(790 558)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(790 692)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1030 558)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1030 692)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1400 558)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1400 692)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1650 558)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1650 692)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1790 558)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1790 692)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(270 971)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(270 1105)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(500 971)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(500 1105)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(790 971)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(790 1105)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1030 971)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1030 1105)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1400 971)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1400 1105)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1650 971)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1650 1105)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1790 971)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1790 1105)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(270 1388)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(270 1522)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(500 1388)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(500 1522)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(790 1388)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(790 1522)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1030 1388)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1030 1522)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1400 1388)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1400 1522)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1650 1388)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1650 1522)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1790 1388)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1790 1522)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(623 260)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(757 260)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(623 450)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(757 450)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(623 760)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(757 760)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(623 900)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(757 900)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(623 1160)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(757 1160)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(623 1350)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(757 1350)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(623 1580)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(757 1580)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(623 1770)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(757 1770)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1233 260)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1367 260)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1233 450)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1367 450)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1233 760)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1367 760)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1233 900)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1367 900)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1233 1160)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1367 1160)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1233 1350)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1367 1350)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1233 1580)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1367 1580)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1233 1770)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1367 1770)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(390 195)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(390 1845)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(720 195)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(720 1845)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1050 195)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1050 1845)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1380 195)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1380 1845)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1690 195)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1690 1845)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(220 430)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1828 430)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(220 760)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1828 760)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(220 1090)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1828 1090)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(220 1420)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1828 1420)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(220 1730)"><circle r="3" fill="#454c50"/></g>
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1828 1730)"><circle r="3" fill="#454c50"/></g>
+</g>
+<g id="identificacao">
+<text x="450" y="575" text-anchor="middle" font-family="Arial" font-size="18" font-weight="700" fill="#26332b" stroke="#e7e3d8" stroke-width="5" paint-order="stroke">QUADRA DE FUTEBOL</text>
+<text x="995" y="985" text-anchor="middle" font-family="Arial" font-size="27" font-weight="700" fill="#26332b" stroke="#e7e3d8" stroke-width="5" paint-order="stroke">PARQUE</text>
+<text x="995" y="1805" text-anchor="middle" font-family="Arial" font-size="25" font-weight="700" fill="#26332b" stroke="#e7e3d8" stroke-width="5" paint-order="stroke">PRAÇA</text>
+</g><g id="edificacoes">
+<g class="casa" data-ang="90" data-tam="1.45" data-cor="#e7c58d" data-teto="#bd6538" transform="translate(590 390)" data-tipo="comercial" data-texto="PADARIA" data-placa-cor="#a94b2f" data-placa-texto="#fff3d8"><rect x="-22" y="-15" width="44" height="30" fill="#bd6538" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="90" data-tam="0.98" data-cor="#e8d8b0" data-teto="#a94d35" transform="translate(820 335)"><rect x="-22" y="-15" width="44" height="30" fill="#a94d35" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="90" data-tam="0.98" data-cor="#e8d8b0" data-teto="#a94d35" transform="translate(950 335)"><rect x="-22" y="-15" width="44" height="30" fill="#a94d35" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="90" data-tam="0.98" data-cor="#e8d8b0" data-teto="#a94d35" transform="translate(820 500)"><rect x="-22" y="-15" width="44" height="30" fill="#a94d35" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="90" data-tam="0.98" data-cor="#e8d8b0" data-teto="#a94d35" transform="translate(950 500)"><rect x="-22" y="-15" width="44" height="30" fill="#a94d35" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="90" data-tam="0.98" data-cor="#e8d8b0" data-teto="#a94d35" transform="translate(1110 500)"><rect x="-22" y="-15" width="44" height="30" fill="#a94d35" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="-90" data-tam="1.55" data-cor="#e5e5df" data-teto="#537d9b" transform="translate(1135 390)" data-tipo="comercial" data-texto="DROGARIA" data-placa-cor="#247b54" data-placa-texto="#ffffff"><rect x="-22" y="-15" width="44" height="30" fill="#537d9b" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="-90" data-tam="1.45" data-cor="#f0d6a6" data-teto="#5a9eb4" transform="translate(1640 335)" data-tipo="comercial" data-texto="SORVETERIA" data-placa-cor="#247f9b" data-placa-texto="#ffffff"><rect x="-22" y="-15" width="44" height="30" fill="#5a9eb4" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="-90" data-tam="0.98" data-cor="#e8d8b0" data-teto="#a94d35" transform="translate(1640 500)"><rect x="-22" y="-15" width="44" height="30" fill="#a94d35" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="-90" data-tam="0.9" data-cor="#e8d8b0" data-teto="#a94d35" transform="translate(1640 565)"><rect x="-22" y="-15" width="44" height="30" fill="#a94d35" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="90" data-tam="0.95" data-cor="#e8d8b0" data-teto="#a94d35" transform="translate(340 740)"><rect x="-22" y="-15" width="44" height="30" fill="#a94d35" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="90" data-tam="0.95" data-cor="#e8d8b0" data-teto="#a94d35" transform="translate(450 740)"><rect x="-22" y="-15" width="44" height="30" fill="#a94d35" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="90" data-tam="0.95" data-cor="#e8d8b0" data-teto="#a94d35" transform="translate(560 740)"><rect x="-22" y="-15" width="44" height="30" fill="#a94d35" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="90" data-tam="0.95" data-cor="#e8d8b0" data-teto="#a94d35" transform="translate(340 845)"><rect x="-22" y="-15" width="44" height="30" fill="#a94d35" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="90" data-tam="0.95" data-cor="#e8d8b0" data-teto="#a94d35" transform="translate(560 845)"><rect x="-22" y="-15" width="44" height="30" fill="#a94d35" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="90" data-tam="0.95" data-cor="#e8d8b0" data-teto="#a94d35" transform="translate(340 940)"><rect x="-22" y="-15" width="44" height="30" fill="#a94d35" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="90" data-tam="0.95" data-cor="#e8d8b0" data-teto="#a94d35" transform="translate(450 940)"><rect x="-22" y="-15" width="44" height="30" fill="#a94d35" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="90" data-tam="0.95" data-cor="#e8d8b0" data-teto="#a94d35" transform="translate(560 940)"><rect x="-22" y="-15" width="44" height="30" fill="#a94d35" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="-90" data-tam="0.95" data-cor="#e8d8b0" data-teto="#a94d35" transform="translate(1415 735)"><rect x="-22" y="-15" width="44" height="30" fill="#a94d35" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="-90" data-tam="0.95" data-cor="#e8d8b0" data-teto="#a94d35" transform="translate(1530 735)"><rect x="-22" y="-15" width="44" height="30" fill="#a94d35" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="-90" data-tam="0.95" data-cor="#e8d8b0" data-teto="#a94d35" transform="translate(1645 735)"><rect x="-22" y="-15" width="44" height="30" fill="#a94d35" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="-90" data-tam="0.95" data-cor="#e8d8b0" data-teto="#a94d35" transform="translate(1415 835)"><rect x="-22" y="-15" width="44" height="30" fill="#a94d35" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="-90" data-tam="0.95" data-cor="#e8d8b0" data-teto="#a94d35" transform="translate(1645 835)"><rect x="-22" y="-15" width="44" height="30" fill="#a94d35" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="-90" data-tam="1.55" data-cor="#f0d4ae" data-teto="#8d4b35" transform="translate(1530 930)" data-tipo="comercial" data-texto="RESTAURANTE" data-placa-cor="#8b3d2d" data-placa-texto="#fff2d5"><rect x="-22" y="-15" width="44" height="30" fill="#8d4b35" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="90" data-tam="1.65" data-cor="#c8d1d4" data-teto="#596c78" transform="translate(450 1150)" data-tipo="comercial" data-texto="OFICINA" data-placa-cor="#364b5b" data-placa-texto="#ffffff"><rect x="-22" y="-15" width="44" height="30" fill="#596c78" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="90" data-tam="0.95" data-cor="#e8d8b0" data-teto="#a94d35" transform="translate(560 1150)"><rect x="-22" y="-15" width="44" height="30" fill="#a94d35" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="90" data-tam="0.95" data-cor="#e8d8b0" data-teto="#a94d35" transform="translate(340 1250)"><rect x="-22" y="-15" width="44" height="30" fill="#a94d35" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="90" data-tam="0.95" data-cor="#e8d8b0" data-teto="#a94d35" transform="translate(560 1250)"><rect x="-22" y="-15" width="44" height="30" fill="#a94d35" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="90" data-tam="0.95" data-cor="#e8d8b0" data-teto="#a94d35" transform="translate(340 1360)"><rect x="-22" y="-15" width="44" height="30" fill="#a94d35" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="90" data-tam="0.95" data-cor="#e8d8b0" data-teto="#a94d35" transform="translate(450 1360)"><rect x="-22" y="-15" width="44" height="30" fill="#a94d35" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="90" data-tam="0.95" data-cor="#e8d8b0" data-teto="#a94d35" transform="translate(560 1360)"><rect x="-22" y="-15" width="44" height="30" fill="#a94d35" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="90" data-tam="0.95" data-cor="#e8d8b0" data-teto="#a94d35" transform="translate(820 1150)"><rect x="-22" y="-15" width="44" height="30" fill="#a94d35" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="90" data-tam="0.95" data-cor="#e8d8b0" data-teto="#a94d35" transform="translate(950 1150)"><rect x="-22" y="-15" width="44" height="30" fill="#a94d35" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="90" data-tam="0.95" data-cor="#e8d8b0" data-teto="#a94d35" transform="translate(1080 1150)"><rect x="-22" y="-15" width="44" height="30" fill="#a94d35" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="90" data-tam="0.95" data-cor="#e8d8b0" data-teto="#a94d35" transform="translate(820 1260)"><rect x="-22" y="-15" width="44" height="30" fill="#a94d35" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="0" data-tam="1.55" data-cor="#e7c58d" data-teto="#a85c39" transform="translate(990 1360)" data-tipo="comercial" data-texto="LANCHONETE" data-placa-cor="#b85d20" data-placa-texto="#fff4dc"><rect x="-22" y="-15" width="44" height="30" fill="#a85c39" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="-90" data-tam="1.9" data-cor="#b8c3c8" data-teto="#65717b" transform="translate(1660 1150)" data-tipo="comercial" data-texto="PRÉDIO" data-placa-cor="#526b83" data-placa-texto="#ffffff"><rect x="-22" y="-15" width="44" height="30" fill="#65717b" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="-90" data-tam="1.9" data-cor="#c7d0d2" data-teto="#52616b" transform="translate(1450 1150)" data-tipo="comercial" data-texto="PRÉDIO" data-placa-cor="#526b83" data-placa-texto="#ffffff"><rect x="-22" y="-15" width="44" height="30" fill="#52616b" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="-90" data-tam="1.9" data-cor="#d1d7d4" data-teto="#697b82" transform="translate(1450 1350)" data-tipo="comercial" data-texto="PRÉDIO" data-placa-cor="#526b83" data-placa-texto="#ffffff"><rect x="-22" y="-15" width="44" height="30" fill="#697b82" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="-90" data-tam="1" data-cor="#e8d8b0" data-teto="#a94d35" transform="translate(1660 1350)"><rect x="-22" y="-15" width="44" height="30" fill="#a94d35" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="-90" data-tam="1" data-cor="#e8d8b0" data-teto="#a94d35" transform="translate(1740 1350)"><rect x="-22" y="-15" width="44" height="30" fill="#a94d35" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="90" data-tam="1.65" data-cor="#e5e5df" data-teto="#537d9b" transform="translate(360 1640)" data-tipo="comercial" data-texto="DROGARIA" data-placa-cor="#247b54" data-placa-texto="#ffffff"><rect x="-22" y="-15" width="44" height="30" fill="#537d9b" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="90" data-tam="0.95" data-cor="#e8d8b0" data-teto="#a94d35" transform="translate(450 1550)"><rect x="-22" y="-15" width="44" height="30" fill="#a94d35" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="90" data-tam="0.95" data-cor="#e8d8b0" data-teto="#a94d35" transform="translate(550 1550)"><rect x="-22" y="-15" width="44" height="30" fill="#a94d35" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="90" data-tam="0.95" data-cor="#e8d8b0" data-teto="#a94d35" transform="translate(450 1750)"><rect x="-22" y="-15" width="44" height="30" fill="#a94d35" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="90" data-tam="0.95" data-cor="#e8d8b0" data-teto="#a94d35" transform="translate(550 1750)"><rect x="-22" y="-15" width="44" height="30" fill="#a94d35" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="-90" data-tam="1.7" data-cor="#f0d4ae" data-teto="#8d4b35" transform="translate(1555 1580)" data-tipo="comercial" data-texto="RESTAURANTE" data-placa-cor="#8b3d2d" data-placa-texto="#fff2d5"><rect x="-22" y="-15" width="44" height="30" fill="#8d4b35" stroke="#333" stroke-width="2"/></g>
+<g class="casa" data-ang="-90" data-tam="1.85" data-cor="#d9e0d1" data-teto="#4d7757" transform="translate(1555 1740)" data-tipo="comercial" data-texto="SUPERMERCADO" data-placa-cor="#326b42" data-placa-texto="#ffffff"><rect x="-22" y="-15" width="44" height="30" fill="#4d7757" stroke="#333" stroke-width="2"/></g>
+</g><circle cx="1024" cy="1860" r="7" fill="#ff0000"/><circle cx="1024" cy="1790" r="7" fill="#0000ff"/>
+<!-- postes nas vias da expansao -->
+<g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(-10 -260)"><circle r="3" fill="#454c50"/></g><g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(-10 350)"><circle r="3" fill="#454c50"/></g><g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(-10 900)"><circle r="3" fill="#454c50"/></g><g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(-10 1500)"><circle r="3" fill="#454c50"/></g><g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(-10 2300)"><circle r="3" fill="#454c50"/></g><g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(160 -260)"><circle r="3" fill="#454c50"/></g><g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(160 350)"><circle r="3" fill="#454c50"/></g><g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(160 900)"><circle r="3" fill="#454c50"/></g><g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(160 1500)"><circle r="3" fill="#454c50"/></g><g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(160 2300)"><circle r="3" fill="#454c50"/></g><g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1900 -260)"><circle r="3" fill="#454c50"/></g><g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1900 350)"><circle r="3" fill="#454c50"/></g><g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1900 900)"><circle r="3" fill="#454c50"/></g><g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1900 1500)"><circle r="3" fill="#454c50"/></g><g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(1900 2300)"><circle r="3" fill="#454c50"/></g><g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(2070 -260)"><circle r="3" fill="#454c50"/></g><g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(2070 350)"><circle r="3" fill="#454c50"/></g><g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(2070 900)"><circle r="3" fill="#454c50"/></g><g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(2070 1500)"><circle r="3" fill="#454c50"/></g><g class="poste" data-tipo="iluminacao" data-tam="1.0" transform="translate(2070 2300)"><circle r="3" fill="#454c50"/></g>
+</svg>
+</div>
+
+<script>
+/* =====================================================================
+   ENGINE  (independente do mapa)
+   ===================================================================== */
+const CFG={
+  metrosPorPixel:0.2,   // escala do mapa
+  alturaOlho:20,         // altura dos olhos, em pixels do mapa
+  fov:80,               // campo de visão horizontal (graus)
+  distMax:1400,         // alcance da visão / neblina (pixels do mapa)
+  vmax:30.56,           // 110 km/h
+  accel:1.65,           // aceleração limitada de veículo pesado
+  freio:4.6,            // desaceleração de serviço
+  tanque:400,           // litros
+  massa:18000,          // kg: caminhão carregado (referência da simulação)
+  rpmMin:650,
+  rpmMax:2500,
+  entreEixos:5.2        // metros
+};
+const $=i=>document.getElementById(i),
+  wc=$('w'),wx=wc.getContext('2d'),oc=$('o'),ox=oc.getContext('2d');
+let W,H,Wr,Hr,HZ,GR,F,gImg;
+
+function resize(){
+  const dpr=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;
+  oc.width=W*dpr;oc.height=H*dpr;ox.setTransform(dpr,0,0,dpr,0,0);
+  Wr=720;Hr=Math.round(Wr*H/W);wc.width=Wr;wc.height=Hr;     // resolução interna do para-brisa
+  HZ=Math.round(Hr*.38);GR=Math.round(Hr*.66)-HZ;             // linha do horizonte e linhas de chão
+  F=(Wr/2)/Math.tan(CFG.fov*Math.PI/360);
+  gImg=wx.createImageData(Wr,GR);
+}
+
+/* ---------- MAPA: lê a imagem e extrai marcadores ---------- */
+const T={ok:0,w:0,h:0,d:null,m:null,mw:0,mh:0,sx:0,sy:0,sa:0,rede:null};
+let engineOn=true;
+function criarRede(w,h){
+  // Rede no sistema de coordenadas do mapa (não na tela). Os postes ficam
+  // nas margens das ruas e cada vão termina em um poste existente.
+  const kx=w/2048,ky=h/2048,postes=[],arestas=[],ids=new Map();
+  const add=(x,y,trafo=false)=>{
+    x*=kx;y*=ky;const key=Math.round(x)+','+Math.round(y);
+    if(ids.has(key))return ids.get(key);
+    const id=postes.length;postes.push({x,y,trafo,altura:trafo?47:43});ids.set(key,id);return id;
+  };
+  const ligarLinha=(coords,axis)=>{
+    const linha=coords.map((v,i)=>axis==='h'?add(v,coords._pos,coords._trafo&&i===0):add(coords._pos,v,coords._trafo&&i===0));
+    for(let i=1;i<linha.length;i++)arestas.push([linha[i-1],linha[i]]);
+  };
+  // Eixos longitudinais: calçadas superior/inferior e margens das avenidas.
+  const hs=[555,695,968,1108,1385,1525];
+  for(let j=0;j<hs.length;j++){
+    const a=[245,650,755,1240,1345,1805];a._pos=hs[j];a._trafo=(j===1||j===4);ligarLinha(a,'h');
+  }
+  // Eixos transversais: contornam os quarteirões nas ruas verticais.
+  const vs=[625,755,1235,1365];
+  for(let j=0;j<vs.length;j++){
+    const a=[225,555,695,968,1108,1385,1525,1815];a._pos=vs[j];a._trafo=(j===0||j===3);ligarLinha(a,'v');
+  }
+  // Ligações curtas nas interseções fecham a malha sem deixar cabos soltos.
+  const seen=new Set(arestas.map(e=>e.slice().sort((a,b)=>a-b).join('-')));
+  const byPos=(x,y)=>ids.get(Math.round(x*kx)+','+Math.round(y*ky));
+  for(const y of hs)for(const x of vs){
+    const a=byPos(x,y),b=byPos(x,y); // nó comum: cruzamento de rede
+    if(a!==undefined&&b!==undefined&&a!==b){const key=[a,b].sort((u,v)=>u-v).join('-');if(!seen.has(key)){arestas.push([a,b]);seen.add(key)}}
+  }
+  return {postes,arestas};
+}
+const isGrass=(r,g,b)=>g>r+12&&g>b+12;
+
+function loadTrack(src,placas=[]){
+  return new Promise((ok,no)=>{
+    const im=new Image();
+    im.onerror=()=>no(new Error('imagem inválida'));
+    im.onload=()=>{
+      let w=im.naturalWidth||2048,h=im.naturalHeight||2048;
+      const k=Math.min(1,4096/Math.max(w,h));w=Math.round(w*k);h=Math.round(h*k);
+      const c=document.createElement('canvas');c.width=w;c.height=h;
+      const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(im,0,0,w,h);
+      let d=x.getImageData(0,0,w,h).data,R=[0,0,0],B=[0,0,0],first=-1;
+      for(let i=0,p=0;i<d.length;i+=4,p++){
+        const r=d[i],g=d[i+1],b=d[i+2];
+        if(r>240&&g<25&&b<25){R[0]+=p%w;R[1]+=(p/w)|0;R[2]++}            // vermelho puro = largada
+        else if(b>240&&r<25&&g<25){B[0]+=p%w;B[1]+=(p/w)|0;B[2]++}       // azul puro = direção
+        else if(first<0&&!isGrass(r,g,b))first=p;
+      }
+      let sx,sy,sa=0;
+      if(R[2]){
+        sx=R[0]/R[2];sy=R[1]/R[2];
+        x.fillStyle='rgb(59,59,64)';                                     // apaga os marcadores do desenho
+        for(const m of [R,B])if(m[2]){x.beginPath();x.arc(m[0]/m[2],m[1]/m[2],Math.sqrt(m[2]/Math.PI)+4,0,7);x.fill()}
+        if(B[2])sa=Math.atan2(B[1]/B[2]-sy,B[0]/B[2]-sx);
+        d=x.getImageData(0,0,w,h).data;
+      }else{                                                             // sem marcadores: primeiro pixel de pista
+        if(first<0)first=0;sx=first%w;sy=(first/w)|0;
+      }
+      const mw=w>>2,mh=h>>2,mc=document.createElement('canvas');mc.width=mw;mc.height=mh;
+      const mx=mc.getContext('2d',{willReadFrequently:true});mx.imageSmoothingQuality='high';mx.drawImage(c,0,0,mw,mh);
+      Object.assign(T,{ok:1,w,h,d,m:mx.getImageData(0,0,mw,mh).data,mw,mh,sx,sy,sa,rede:criarRede(w,h),placas:placas.map(p=>({...p,x:p.x*k,y:p.y*k,tam:(p.tam||1)*k,comp:(p.comp||0)*k,prof:(p.prof||0)*k}))});
+      ok();
+    };
+    im.src=src;
+  });
+}
+/* Lê um SVG como texto: extrai as placas (<g class="placa">), remove o grupo #placas
+   do desenho do chão e entrega o resto a loadTrack. */
+function loadSvgText(txt){
+  const doc=new DOMParser().parseFromString(txt,'image/svg+xml'),root=doc.documentElement;
+  if(doc.querySelector('parsererror'))return Promise.reject(new Error('svg inválido'));
+  const vb=(root.getAttribute('viewBox')||'').trim().split(/[\s,]+/).map(Number),wA=parseFloat(root.getAttribute('width')),
+    sc=vb.length===4&&wA&&vb[2]?wA/vb[2]:1,objs=[],SEL='[class~="placa"],[class~="arvore"],[class~="casa"],[class~="poste"],[class~="arquibancada"]';
+  root.querySelectorAll(SEL).forEach(e=>{                       // placas, árvores e casas
+    const m=(e.getAttribute('transform')||'').match(/translate\(\s*(-?[\d.]+)[\s,]+(-?[\d.]+)/);
+    if(!m)return;
+    const cl=e.getAttribute('class'),cls=/\barquibancada\b/.test(cl)?'arquibancada':/\barvore\b/.test(cl)?'arvore':/\bcasa\b/.test(cl)?'casa':/\bposte\b/.test(cl)?'poste':'placa';
+    objs.push({
+  cls,
+  x:(+m[1]-(vb[0]||0))*sc,
+  y:(+m[2]-(vb[1]||0))*sc,
+  ang:(+e.getAttribute('data-ang')||0)*Math.PI/180,
+      tipo:e.getAttribute('data-tipo')||(cls==='arvore'?'copa':'info'),texto:e.getAttribute('data-texto')||'',
+      tam:(+e.getAttribute('data-tam')||1)*sc,comp:(+e.getAttribute('data-comp')||0)*sc,prof:(+e.getAttribute('data-prof')||0)*sc,fileiras:+e.getAttribute('data-fileiras')||9,cores:(e.getAttribute('data-cores')||'#2f6fd0,#f1c40f,#d9352b').split(','),cor:e.getAttribute('data-cor')||'#e8d8b0',teto:e.getAttribute('data-teto')||'#b5452b',placaCor:e.getAttribute('data-placa-cor')||'#245d78',placaTexto:e.getAttribute('data-placa-texto')||'#fff'});
+  });
+  for(const id of ['placas','cenario','arquibancadas']){const g=root.querySelector(`[id="${id}"]`);if(g)g.remove()}
+  root.querySelectorAll(SEL).forEach(e=>e.remove());             // objetos fora dos grupos
+  return loadTrack('data:image/svg+xml;charset=utf-8,'+encodeURIComponent(new XMLSerializer().serializeToString(root)),objs);
+}
+function surface(x,y){                       // 1 = grama, 0 = pista
+  const ix=x|0,iy=y|0;
+  if(x<0||y<0||ix>=T.w||iy>=T.h)return 1;
+  const i=(iy*T.w+ix)*4,d=T.d;return isGrass(d[i],d[i+1],d[i+2])?1:0;
+}
+
+/* ---------- CAMINHÃO PESADO / CÂMBIO MANUAL DE 12 MARCHAS ---------- */
+const K={},car={};
+const MARCHAS=[
+  {nome:'1ª',vel:10,forca:1.45},
+  {nome:'2ª',vel:20,forca:1.25},
+  {nome:'3ª',vel:30,forca:1.10},
+  {nome:'4ª',vel:40,forca:1.00},
+  {nome:'5ª',vel:50,forca:0.95},
+  {nome:'6ª',vel:60,forca:0.90},
+  {nome:'7ª',vel:70,forca:.85},
+  {nome:'8ª',vel:80,forca:.80},
+  {nome:'9ª',vel:90,forca:.75},
+  {nome:'10ª',vel:100,forca:.70},
+  {nome:'11ª',vel:110,forca:.65},
+  {nome:'12ª',vel:120,forca:.60}
+];
+function reset(){
+  engineOn=true;atualizaBotaoMotor();
+  Object.assign(car,{x:T.sx,y:T.sy,a:T.sa,vx:0,vy:0,spd:0,steer:0,thr:0,brk:0,
+    fuel:CFG.tanque,rpm:CFG.rpmMin,gear:1,gearLabel:'1ª',off:0,t:0,lapT:0,
+    laps:0,best:0,last:0,started:0,armed:0,side:40,vk:0,
+    brakePressure:0,shiftTimer:0});
+  if(dieselAudio){dieselAudio.pause();dieselAudio.currentTime=0;}
+}
+function trocarMarcha(delta){
+  if(!engineOn) return;
+
+  const nova = Math.max(1, Math.min(12, car.gear + delta));
+
+  if(nova === car.gear) return;
+
+  car.gear = nova;
+  car.gearLabel = MARCHAS[nova - 1].nome;
+  car.shiftTimer = 0.25;
+
+  console.log('Marcha atual:', car.gearLabel);
+}
+function step(dt){
+  const c=car,S=CFG.metrosPorPixel,cs=Math.cos(c.a),sn=Math.sin(c.a);
+  const sIn=(K.right?1:0)-(K.left?1:0);
+  c.thr+=((K.up?1:0)-c.thr)*Math.min(1,dt*1.8);
+  c.steer+=(sIn-c.steer)*Math.min(1,dt*1.7);
+  const alvoFreio=K.down?1:0;
+  c.brakePressure+=(alvoFreio-c.brakePressure)*Math.min(1,dt*2.4);
+  if(c.shiftTimer>0)c.shiftTimer=Math.max(0,c.shiftTimer-dt);
+
+  let g=0;
+  for(const [fx,fy] of [[2.5,1],[2.5,-1],[-2.5,1],[-2.5,-1]])
+    g+=surface(c.x+(fx*cs-fy*sn)/S,c.y+(fx*sn+fy*cs)/S);
+  c.off=g/4;
+  let vf=c.vx*cs+c.vy*sn,vl=-c.vx*sn+c.vy*cs;
+  const on=c.fuel>0&&engineOn,m=MARCHAS[c.gear-1];
+  let a=0;
+
+  // Motor diesel com torque forte em baixa rotação e aceleração limitada pela massa.
+  if(on&&c.thr>.01&&c.shiftTimer<=0&&vf>=-.5){
+    const vkmh=Math.max(0,vf*3.6),rel=Math.min(1,vkmh/m.vel);
+    const faixaTorque=0.72+0.28*Math.min(1,Math.max(0,(c.rpm-800)/900));
+    a+=c.thr*CFG.accel*m.forca*faixaTorque*Math.max(.12,1-rel*.92)*(1-.48*c.off);
+  }
+  // Freio de serviço com enchimento gradual da pressão pneumática.
+  if(c.brakePressure>.01){
+    if(vf>.12)a-=CFG.freio*c.brakePressure;
+    else if(vf<-.12)a+=CFG.freio*c.brakePressure;
+  }
+  // Ré somente em baixa velocidade; ao manter S, o caminhão recua lentamente.
+  if(on&&K.down&&Math.abs(vf)<.75)a=-.48;
+
+  const drag=(.16+1.65*c.off+.00165*vf*vf)*Math.sign(vf);
+  let nv=vf+(a-drag)*dt;
+  if(vf*nv<0&&!(K.down&&Math.abs(vf)<.75))nv=0;
+  vf=nv;
+  if(K.space)vf*=Math.exp(-1.65*dt);
+  // Maior inércia lateral e esterçamento progressivo do veículo longo.
+  vl*=Math.exp(-(K.space?2.1:(c.off>0?1.35:3.0))*dt);
+  c.vx=vf*cs-vl*sn;c.vy=vf*sn+vl*cs;
+  const ang=c.steer*.28/(1+Math.pow(Math.abs(vf)/12,2));
+  c.a+=vf*Math.tan(ang)/CFG.entreEixos*dt;
+  c.x+=c.vx*dt/S;c.y+=c.vy*dt/S;
+  if(c.x<0||c.y<0||c.x>T.w||c.y>T.h){
+    c.x=Math.max(0,Math.min(T.w,c.x));c.y=Math.max(0,Math.min(T.h,c.y));c.vx*=.3;c.vy*=.3;
+  }
+  for(const p of T.placas){
+    if(p.cls==='arquibancada'){
+      const fa=Math.cos(p.ang),fb=Math.sin(p.ang),ux=-fb,uy=fa,bx=-fa,by=-fb,
+        ex=c.x-p.x,ey=c.y-p.y,U=ex*ux+ey*uy,V=ex*bx+ey*by,hh=p.comp/2+27,D=p.prof,m=28;
+      if(Math.abs(U)<hh&&V>-m&&V<D+m){
+        const o=[hh-U,hh+U,V+m,D+m-V],k=o.indexOf(Math.min(...o)),n=[[1,0],[-1,0],[0,-1],[0,1]][k],
+          nx=ux*n[0]+bx*n[1],ny=uy*n[0]+by*n[1],vn=c.vx*nx+c.vy*ny;
+        c.x+=nx*o[k];c.y+=ny*o[k];
+        if(vn<0){c.vx=(c.vx-1.1*vn*nx)*.55;c.vy=(c.vy-1.1*vn*ny)*.55;}
+      }
+      continue;
+    }
+    const r=p.cls==='casa'?38*p.tam+12:p.cls==='arvore'?12:12,dx=c.x-p.x,dy=c.y-p.y;
+    if(Math.abs(dx)>r||Math.abs(dy)>r)continue;
+    const d=Math.hypot(dx,dy)||1;if(d>=r)continue;
+    const nx=dx/d,ny=dy/d,vn=c.vx*nx+c.vy*ny;
+    c.x=p.x+nx*r;c.y=p.y+ny*r;
+    if(vn<0){c.vx=(c.vx-1.1*vn*nx)*.55;c.vy=(c.vy-1.1*vn*ny)*.55;}
+  }
+  c.spd=vf;c.vk=Math.abs(vf)*3.6;
+  if(c.vk>CFG.vmax*3.6){const f=(CFG.vmax*3.6)/c.vk;c.vx*=f;c.vy*=f;vf*=f;c.spd=vf;c.vk=CFG.vmax*3.6;}
+
+  // RPM calculada pela velocidade relativa da marcha selecionada.
+  let rpmAlvo=0;
+  if(on){
+    const rel=Math.min(1,Math.abs(vf)*3.6/m.vel);
+    rpmAlvo=CFG.rpmMin+rel*(CFG.rpmMax-CFG.rpmMin)*.9+c.thr*170;
+    if(c.shiftTimer>0)rpmAlvo*=.76;
+    if(c.vk<1)rpmAlvo=CFG.rpmMin+c.thr*260;
+  }
+  c.rpm+=(rpmAlvo-c.rpm)*Math.min(1,dt*3.4);
+  if(on&&c.started)c.fuel=Math.max(0,c.fuel-(.00035+.012*c.thr*(.5+c.vk/110))*dt);
+  if(!c.started&&Math.abs(vf)>.5)c.started=1;
+  if(c.started&&engineOn)c.t+=dt;
+  const dx=c.x-T.sx,dy=c.y-T.sy,dd=Math.cos(T.sa),ds=Math.sin(T.sa);
+  const side=dx*dd+dy*ds+40,lat=-dx*ds+dy*dd;
+  if(Math.hypot(dx,dy)>500)c.armed=1;
+  if(engineOn&&c.armed&&c.side<0&&side>=0&&Math.abs(lat)<100){
+    c.laps++;c.last=c.t-c.lapT;c.best=c.best?Math.min(c.best,c.last):c.last;c.lapT=c.t;c.armed=0;
+  }
+  c.side=side;
+}
+
+/* ---------- PARA-BRISA: projeta o mapa em perspectiva (estilo "mode 7") ---------- */
+function drawWorld(){
+  const c=car,cs=Math.cos(c.a),sn=Math.sin(c.a);
+  let g=wx.createLinearGradient(0,0,0,HZ);g.addColorStop(0,'#3d78b8');g.addColorStop(1,'#cfe3f0');
+  wx.fillStyle=g;wx.fillRect(0,0,Wr,HZ+1);
+  const rel=Math.atan2(Math.sin(4.2-c.a),Math.cos(4.2-c.a));      // sol
+  wx.fillStyle='rgba(255,247,208,.9)';wx.beginPath();wx.arc(Wr/2+rel*F,HZ*.55,Hr*.035,0,7);wx.fill();
+  for(const [col,amp,fr,ph] of [['#8fb0c4',.07,3,1],['#4f7d5a',.04,7,2]]){   // colinas com paralaxe
+    wx.fillStyle=col;wx.beginPath();wx.moveTo(0,HZ);
+    for(let x=0;x<=Wr;x+=6){const a=c.a+(x-Wr/2)/F;wx.lineTo(x,HZ-Hr*amp*(.6+.4*Math.sin(a*fr+ph)+.3*Math.sin(a*fr*2.7+ph*3)))}
+    wx.lineTo(Wr,HZ);wx.closePath();wx.fill();
+  }
+  const D=gImg.data,Td=T.d,Tm=T.m,tw=T.w,th=T.h,mw=T.mw,mh=T.mh,md=CFG.distMax,rx=-sn,ry=cs;
+  const H0=CFG.alturaOlho+(c.off>0?(Math.random()-.5)*c.vk*.015:0);
+  for(let j=0;j<GR;j++){
+    const d=H0*F/(j+.5),o=j*Wr*4;
+    if(d>md){for(let i=0;i<Wr;i++){const q=o+i*4;D[q]=207;D[q+1]=227;D[q+2]=240;D[q+3]=255}continue}
+    const k=d/F,sx=rx*k,sy=ry*k,f=Math.min(1,Math.pow(d/md,1.8)),lod=d>450;
+    let x=c.x+cs*d-sx*(Wr/2),y=c.y+sn*d-sy*(Wr/2);
+    for(let i=0;i<Wr;i++,x+=sx,y+=sy){
+      let r=79,gg=140,b=58;
+      const ix=x|0,iy=y|0;
+      if(x>=0&&y>=0&&ix<tw&&iy<th){
+        if(lod){const q=(Math.min(iy>>2,mh-1)*mw+Math.min(ix>>2,mw-1))*4;r=Tm[q];gg=Tm[q+1];b=Tm[q+2]}
+        else{const q=(iy*tw+ix)*4;r=Td[q];gg=Td[q+1];b=Td[q+2]}
+      }
+      const q=o+i*4;D[q]=r+(207-r)*f;D[q+1]=gg+(227-gg)*f;D[q+2]=b+(240-b)*f;D[q+3]=255;
+    }
+  }
+  wx.putImageData(gImg,0,HZ);
+  drawRedeEletrica(c,cs,sn,H0);
+  drawPlacas(c,cs,sn,H0);
+}
+/* ---------- REDE ELÉTRICA: geometria do mapa projetada pela câmera ---------- */
+function drawRedeEletrica(c,cs,sn,H0){
+  const rede=T.rede;if(!rede)return;
+  const near=5,md=CFG.distMax,postes=rede.postes;
+  const projetar=(x,y,z)=>{
+    const dx=x-c.x,dy=y-c.y,fr=dx*cs+dy*sn,lat=-dx*sn+dy*cs;
+    if(fr<near)return null;
+    const q=F/fr;
+    return {x:Wr/2+lat*q,y:HZ+(H0-z)*q,z:fr,q};
+  };
+  // Cabos trifásicos, amostrados ao longo do vão com flecha física.
+  wx.save();wx.lineCap='round';
+  for(const [ia,ib] of rede.arestas){
+    const a=postes[ia],b=postes[ib],dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy);
+    if(len>CFG.distMax*1.2)continue;
+    for(let fase=-1;fase<=1;fase++){
+      wx.beginPath();let started=false,avg=0,n=0;
+      for(let j=0;j<=16;j++){
+        const t=j/16,x=a.x+dx*t,y=a.y+dy*t;
+        const z=37+fase*2.0-5.2*4*t*(1-t);
+        const q=projetar(x,y,z);
+        if(!q){started=false;continue;}
+        if(!started){wx.moveTo(q.x,q.y);started=true}else wx.lineTo(q.x,q.y);
+        avg+=q.z;n++;
+      }
+      if(n>1){wx.globalAlpha=(1-Math.min(1,Math.pow(avg/n/md,1.8)))*.9;wx.strokeStyle=fase===0?'#303a40':'#59646a';wx.lineWidth=Math.max(.45,Math.min(2.1,F/(avg/n)*.7));wx.stroke();}
+    }
+  }
+  // Postes de distribuição: fuste alto, cruzeta, três isoladores e transformador.
+  const vis=[];
+  for(const p of postes){const q=projetar(p.x,p.y,0);if(!q||q.z>md)continue;if(q.x<-80||q.x>Wr+80)continue;vis.push({p,q});}
+  vis.sort((a,b)=>b.q.z-a.q.z);
+  for(const {p,q} of vis){
+    const s=q.q,base=q.y,top=base-p.altura*s;
+    wx.globalAlpha=1-Math.min(1,Math.pow(q.z/md,1.8));
+    wx.strokeStyle='#5c5145';wx.lineWidth=Math.max(.8,3.0*s);wx.beginPath();wx.moveTo(q.x,base);wx.lineTo(q.x,top);wx.stroke();
+    wx.strokeStyle='#8b795e';wx.lineWidth=Math.max(.5,1.0*s);wx.beginPath();wx.moveTo(q.x-12*s,top+5*s);wx.lineTo(q.x+12*s,top+5*s);wx.stroke();
+    for(const dx of [-9,0,9]){wx.fillStyle='#d7d9d4';wx.beginPath();wx.ellipse(q.x+dx*s,top+2.5*s,1.8*s,3*s,0,0,Math.PI*2);wx.fill();}
+    if(p.trafo){
+      wx.fillStyle='#59636a';wx.fillRect(q.x-4.5*s,top+9*s,9*s,12*s);
+      wx.fillStyle='#aeb7b8';wx.fillRect(q.x-3.5*s,top+10*s,7*s,9*s);
+      wx.strokeStyle='#424b50';wx.lineWidth=Math.max(.5,1*s);wx.strokeRect(q.x-4.5*s,top+9*s,9*s,12*s);
+      wx.beginPath();wx.moveTo(q.x-5*s,top+8*s);wx.lineTo(q.x+5*s,top+8*s);wx.stroke();
+    }
+  }
+  wx.restore();
+}
+/* ---------- CENÁRIO: placas, árvores e casas viram sprites em pé, em perspectiva ---------- */
+function drawPlacas(c,cs,sn,H0){
+  if(!T.placas||!T.placas.length)return;
+  const md=CFG.distMax,vis=[];
+  for(const p of T.placas){
+    const dx=p.x-c.x,dy=p.y-c.y,z=dx*cs+dy*sn;
+    if(p.cls==='arquibancada'){if(Math.hypot(dx,dy)<md+p.comp/2)vis.push({p,z:Math.max(10,z),s:0,sx:0,dx,dy});continue}
+    if(z<4||z>md)continue;
+    const s=F/z,sx=Wr/2+(-dx*sn+dy*cs)*s;
+    if(sx<-50*s-20||sx>Wr+50*s+20)continue;
+    vis.push({p,z,s,sx,dx,dy});
+  }
+  vis.sort((a,b)=>b.z-a.z);                                       // de longe para perto
+  for(const v of vis){
+    if(v.p.cls==='arquibancada'){drawStand(v.p,c,cs,sn,H0);continue}
+    const {p,z,s,sx}=v,gy=HZ+H0*s,dist=Math.hypot(v.dx,v.dy)||1;
+    const dot=(-v.dx*Math.cos(p.ang)-v.dy*Math.sin(p.ang))/dist;   // >0: a frente do objeto está virada para o carro
+    wx.save();wx.globalAlpha=1-Math.min(1,Math.pow(z/md,1.8));
+    if(p.cls==='arvore'){wx.translate(sx,gy);wx.scale(s,s);desenhaArvore(p)}
+    else if(p.cls==='poste'){wx.translate(sx,gy);wx.scale(s,s);desenhaPoste(p)}
+    else if(p.cls==='casa'){wx.translate(sx,gy);wx.scale(s*Math.max(.35,Math.abs(dot)),s);desenhaCasa(p,dot>0)}
+    else{
+      const r=4.2*s,cy=gy-12.5*s;
+      wx.fillStyle='#6b6f78';wx.fillRect(sx-Math.max(.6,.45*s),cy,Math.max(1.2,.9*s),gy-cy);
+      wx.translate(sx,cy);wx.scale(Math.max(.2,Math.abs(dot)),1);desenhaPlaca(p,dot>0,r);
+    }
+    wx.restore();
+  }
+}
+/* ---------- ARQUIBANCADA: geometria 3D real (polígonos projetados, com recorte no plano próximo) ---------- */
+const PESSOA={camisa:['#d9352b','#2f6fd0','#f1c40f','#f4f4f4','#2d9d5c','#25272c','#e67e22','#8e44ad'],pele:['#f1c27d','#e0ac84','#c68642','#8d5524']};
+function drawStand(p,c,cs,sn,H0){
+  const L=p.comp||560,D=p.prof||76,N=Math.max(2,p.fileiras|0||9),t=p.tam||1,rh=4*t,dp=D/N,hh=L/2,
+    zR=N*rh+26*t,zF=zR-12*t,near=2,md=CFG.distMax,cores=p.cores&&p.cores.length?p.cores:['#2f6fd0'],
+    fa=Math.cos(p.ang),fb=Math.sin(p.ang),ux=-fb,uy=fa,bx=-fa,by=-fb,         // u = ao longo da pista, b = para os fundos
+    ex=c.x-p.x,ey=c.y-p.y,cu=ex*ux+ey*uy,cv=ex*bx+ey*by,ns=6,sw=L/ns;
+  const cam=q=>{const X=p.x+ux*q[0]+bx*q[1]-c.x,Y=p.y+uy*q[0]+by*q[1]-c.y;return[-X*sn+Y*cs,H0-q[2],X*cs+Y*sn]};
+  const pr=a=>[Wr/2+a[0]*F/a[2],HZ+a[1]*F/a[2]];
+  const fog=z=>1-Math.min(1,Math.pow(Math.max(0,z)/md,1.8));
+  function poly(pts,n,fill){                                              // n = normal para fora (u,b,z)
+    const q0=pts[0];
+    if(n[0]*(cu-q0[0])+n[1]*(cv-q0[1])+n[2]*(H0-q0[2])<=0)return false;   // face de costas: não desenha
+    const a=pts.map(cam),o=[];
+    for(let i=0;i<a.length;i++){
+      const A=a[i],B=a[(i+1)%a.length],ia=A[2]>=near,ib=B[2]>=near;
+      if(ia)o.push(A);
+      if(ia!==ib){const k=(near-A[2])/(B[2]-A[2]);o.push([A[0]+(B[0]-A[0])*k,A[1]+(B[1]-A[1])*k,near])}
+    }
+    if(o.length<3)return false;
+    let zs=0;wx.beginPath();
+    o.forEach((v,i)=>{const s=pr(v);zs+=v[2];i?wx.lineTo(s[0],s[1]):wx.moveTo(s[0],s[1])});
+    wx.closePath();wx.globalAlpha=fog(zs/o.length);wx.fillStyle=wx.strokeStyle=fill;wx.lineWidth=.8;wx.fill();wx.stroke();
+    return true;
+  }
+  const FR=[0,-1,0],BK=[0,1,0],UP=[0,0,1],DN=[0,0,-1];
+  if(!p._pp){                                                              // público: gerado uma vez, de forma determinística
+    let a=(Math.round(p.x)*7919+Math.round(p.y)*104729)|0;const r=()=>{a=a+0x6D2B79F5|0;let q=Math.imul(a^a>>>15,1|a);q=q+Math.imul(q^q>>>7,61|q)^q;return((q^q>>>14)>>>0)/4294967296};
+    p._pp=[];
+    for(let i=0;i<N;i++){const row=[];
+      for(let s=0;s<ns;s++)for(let u=-hh+s*sw+7;u<-hh+(s+1)*sw-5;u+=4.4)
+        if(r()<.9)row.push([u+(r()-.5)*.9,(r()*8)|0,(r()*4)|0,s]);
+      p._pp.push(row);}
+  }
+  wx.save();
+  // fundos: parede externa (vista por trás), painel interno, colunas
+  poly([[-hh,D,0],[hh,D,0],[hh,D,zR],[-hh,D,zR]],BK,'#7b818b');
+  poly([[-hh,D,zR*.38],[hh,D,zR*.38],[hh,D,zR*.5],[-hh,D,zR*.5]],BK,'#c9cdd4');
+  poly([[-hh,D,N*rh],[hh,D,N*rh],[hh,D,zR],[-hh,D,zR]],FR,'#343941');
+  for(let u=-hh+4;u<=hh;u+=70)poly([[u-2.5,D-.4,N*rh],[u+2.5,D-.4,N*rh],[u+2.5,D-.4,zR],[u-2.5,D-.4,zR]],FR,'#5b616b');
+  // telhado: face de baixo em faixas, bordas
+  const nb=Math.ceil(L/40),wb=L/nb;
+  for(let k=0;k<nb;k++)poly([[-hh+k*wb,-8,zF],[-hh+(k+1)*wb,-8,zF],[-hh+(k+1)*wb,D+6,zR],[-hh+k*wb,D+6,zR]],DN,k%2?'#d9dce1':'#c5c9d0');
+  poly([[-hh,D+6,zR],[hh,D+6,zR],[hh,D+6,zR+3],[-hh,D+6,zR+3]],BK,'#e9ecf0');
+  // degraus (de cima para baixo): risco, piso, público
+  if(cv<D+.5){
+    for(let i=N-1;i>=0;i--){
+      const V0=i*dp,V1=V0+dp,Z0=i*rh,Z1=Z0+rh;
+      poly([[-hh,V0,Z0],[hh,V0,Z0],[hh,V0,Z1],[-hh,V0,Z1]],FR,'#8d9199');
+      for(let s=0;s<ns;s++){const u0=-hh+s*sw+3,u1=u0+sw-6;poly([[u0,V0-.05,Z0],[u1,V0-.05,Z0],[u1,V0-.05,Z1],[u0,V0-.05,Z1]],FR,cores[s%cores.length])}
+      poly([[-hh,V0,Z1],[hh,V0,Z1],[hh,V1,Z1],[-hh,V1,Z1]],UP,'#b4b8bf');
+      const dU=Math.max(0,Math.abs(cu)-hh);wx.globalAlpha=fog(Math.hypot(dU,cv-(i+.5)*dp));
+      const V=(i+.5)*dp;
+      for(const [U,sh,sk] of p._pp[i]){
+        const a=cam([U,V,Z1]);if(a[2]<near)continue;
+        const s=F/a[2],x=Wr/2+a[0]*s,y=HZ+a[1]*s;
+        if(x<-8||x>Wr+8)continue;
+        wx.fillStyle=PESSOA.camisa[sh];wx.fillRect(x-1.7*s,y-4.6*s,3.4*s,4.6*s);
+        wx.fillStyle=PESSOA.pele[sk];wx.beginPath();wx.arc(x,y-5.8*s,1.35*s,0,7);wx.fill();
+      }
+    }
+  }
+  // faixa de publicidade na frente e painel com o texto
+  const pal=['#d9352b','#f4f4f4','#2f6fd0','#f1c40f'],nbn=Math.round(L/56),wn=L/nbn;
+  for(let k=0;k<nbn;k++)poly([[-hh+k*wn,-4,0],[-hh+(k+1)*wn,-4,0],[-hh+(k+1)*wn,-4,6*t],[-hh+k*wn,-4,6*t]],FR,pal[k%4]);
+  poly([[-100,-4.1,0],[100,-4.1,0],[100,-4.1,6*t],[-100,-4.1,6*t]],FR,'#14161a');
+  if(p.texto&&cv<-4.1){                                                      // texto em perspectiva (afim por segmento)
+    const T0=cam([100,-4.2,6*t]),T1=cam([-100,-4.2,6*t]),T2=cam([100,-4.2,0]);
+    if(T0[2]>near&&T1[2]>near&&T2[2]>near){
+      const A=pr(T0),B=pr(T1),C=pr(T2),w=200,hg=6*t;
+      wx.globalAlpha=fog(T0[2]);wx.setTransform((B[0]-A[0])/w,(B[1]-A[1])/w,(C[0]-A[0])/hg,(C[1]-A[1])/hg,A[0],A[1]);
+      wx.fillStyle='#fff';wx.font=`bold ${hg*.62}px system-ui,sans-serif`;wx.textAlign='center';wx.textBaseline='middle';
+      wx.fillText(p.texto,w/2,hg/2+.3,w*.94);wx.setTransform(1,0,0,1,0,0);
+    }
+  }
+  // beiral do telhado e laterais
+  poly([[-hh,-8,zF],[hh,-8,zF],[hh,-8,zF+3],[-hh,-8,zF+3]],FR,'#f2f4f7');
+  poly([[-hh,-8,zF],[hh,-8,zF],[hh,-8,zF+1.3],[-hh,-8,zF+1.3]],FR,cores[0]);
+  for(const e of [1,-1]){
+    const u=e*hh,pf=[[u,0,0],[u,D,0],[u,D,N*rh]];
+    for(let i=N-1;i>=0;i--)pf.push([u,i*dp,(i+1)*rh],[u,i*dp,i*rh]);
+    poly(pf,[e,0,0],'#8a8e96');
+    poly([[u,-8,zF],[u,D+6,zR],[u,D+6,zR+3],[u,-8,zF+3]],[e,0,0],'#e9ecf0');
+  }
+  wx.restore();
+}
+function desenhaArvore(p){                                        // unidades do mapa; origem = pé da árvore
+  const t=p.tam;
+  wx.fillStyle='#5a3d24';wx.fillRect(-1.3*t,-9*t,2.6*t,9*t);
+  if(p.tipo==='pinheiro'){
+    for(let i=0;i<3;i++){
+      const y=-6*t-i*7*t,w=(11-i*2.6)*t;
+      wx.fillStyle=i%2?'#2c6b32':'#245a2a';
+      wx.beginPath();wx.moveTo(0,y-11*t);wx.lineTo(w,y+2*t);wx.lineTo(-w,y+2*t);wx.closePath();wx.fill();
+    }
+  }else{
+    wx.fillStyle='#276a2a';wx.beginPath();wx.arc(0,-19*t,10.5*t,0,7);wx.fill();
+    wx.fillStyle='#348a36';wx.beginPath();wx.arc(-3*t,-22*t,7*t,0,7);wx.fill();
+    wx.fillStyle='#46a444';wx.beginPath();wx.arc(-5*t,-25*t,3.2*t,0,7);wx.fill();
+  }
+}
+function desenhaPoste(p){
+  const t=p.tam||1;
+  // Base metálica, fuste cônico e braço curvo de luminária pública LED.
+  wx.fillStyle='rgba(0,0,0,.22)';wx.beginPath();wx.ellipse(1*t,-1*t,3.5*t,1.5*t,0,0,Math.PI*2);wx.fill();
+  wx.fillStyle='#454c50';wx.fillRect(-2*t,-2*t,4*t,2*t);
+  wx.strokeStyle='#59636a';wx.lineWidth=2.2*t;wx.lineCap='round';
+  wx.beginPath();wx.moveTo(0,-2*t);wx.lineTo(0,-45*t);wx.stroke();
+  wx.strokeStyle='#737d82';wx.lineWidth=1.2*t;
+  wx.beginPath();wx.moveTo(0,-42*t);wx.quadraticCurveTo(0,-51*t,8*t,-51*t);wx.lineTo(15*t,-51*t);wx.stroke();
+  wx.fillStyle='#343b40';wx.beginPath();wx.moveTo(7*t,-52*t);wx.quadraticCurveTo(16*t,-54*t,21*t,-51*t);wx.lineTo(21*t,-48.5*t);wx.lineTo(8*t,-48.5*t);wx.closePath();wx.fill();
+  wx.fillStyle='#dce8e8';wx.beginPath();wx.ellipse(15*t,-49.2*t,5.5*t,1.25*t,0,0,Math.PI*2);wx.fill();
+  wx.fillStyle='rgba(255,244,184,.24)';wx.beginPath();wx.arc(15*t,-48.5*t,7*t,0,Math.PI*2);wx.fill();
+  wx.strokeStyle='#aeb8ba';wx.lineWidth=.65*t;wx.beginPath();wx.moveTo(-1*t,-37*t);wx.lineTo(1*t,-37*t);wx.stroke();
+}
+function desenhaCasa(p,frente){
+  const t=p.tam,comercial=!!p.texto;
+  wx.fillStyle=p.cor;wx.fillRect(-25*t,-17*t,50*t,17*t);
+  wx.fillStyle='rgba(0,0,0,.16)';wx.fillRect(-25*t,-3*t,50*t,3*t);
+  wx.fillStyle=p.teto;wx.beginPath();wx.moveTo(-30*t,-17*t);wx.lineTo(-17*t,-29*t);wx.lineTo(17*t,-29*t);wx.lineTo(30*t,-17*t);wx.closePath();wx.fill();
+  wx.fillStyle='rgba(0,0,0,.2)';wx.fillRect(-30*t,-18.5*t,60*t,1.5*t);
+  if(frente){
+    if(comercial){
+      const placa=p.tipo==='comercial';
+      wx.fillStyle=p.placaCor||'#245d78';wx.fillRect(-25*t,-17*t,50*t,8*t);
+      wx.strokeStyle='rgba(255,255,255,.85)';wx.lineWidth=.7*t;wx.strokeRect(-24.5*t,-16.5*t,49*t,7*t);
+      wx.fillStyle=p.placaTexto||'#fff';wx.font=`bold ${Math.max(3.5,Math.min(6.2,43/(p.texto.length||1)))*t}px Arial,sans-serif`;
+      wx.textAlign='center';wx.textBaseline='middle';wx.fillText(p.texto,0,-13*t,47*t);
+      wx.fillStyle='#6b4429';wx.fillRect(-4*t,-9*t,8*t,9*t);
+      wx.fillStyle='#a9dff4';wx.fillRect(-21*t,-8*t,12*t,7*t);wx.fillRect(9*t,-8*t,12*t,7*t);
+      wx.strokeStyle='#e8eef0';wx.lineWidth=.8*t;wx.strokeRect(-21*t,-8*t,12*t,7*t);wx.strokeRect(9*t,-8*t,12*t,7*t);
+    }else{
+      wx.fillStyle='#5b3b24';wx.fillRect(-4*t,-11*t,8*t,11*t);
+      wx.fillStyle='#a9d4ef';wx.fillRect(-19*t,-13*t,9*t,7*t);wx.fillRect(10*t,-13*t,9*t,7*t);
+    }
+  }else{wx.fillStyle='#a9d4ef';wx.fillRect(-6*t,-13*t,12*t,6*t)}
+}
+function desenhaPlaca(p,frente,r){
+  wx.lineJoin=wx.lineCap='round';wx.textAlign='center';wx.textBaseline='middle';
+  if(!frente){wx.fillStyle='#8a8f98';wx.beginPath();wx.arc(0,0,r,0,7);wx.fill();return}
+  if(p.tipo==='velocidade'){
+    wx.fillStyle='#fff';wx.beginPath();wx.arc(0,0,r,0,7);wx.fill();
+    wx.strokeStyle='#d62020';wx.lineWidth=r*.18;wx.beginPath();wx.arc(0,0,r*.88,0,7);wx.stroke();
+    wx.fillStyle='#111';wx.font=`bold ${r*.9}px system-ui,sans-serif`;wx.fillText(p.texto,0,r*.05,r*1.5);
+  }else if(p.tipo==='curva'){
+    wx.fillStyle='#ffd400';wx.strokeStyle='#111';wx.lineWidth=r*.12;
+    wx.beginPath();wx.moveTo(0,-r*1.15);wx.lineTo(r*1.15,0);wx.lineTo(0,r*1.15);wx.lineTo(-r*1.15,0);wx.closePath();wx.fill();wx.stroke();
+    const d=p.texto==='esq'?-1:1;
+    wx.lineWidth=r*.2;wx.beginPath();wx.moveTo(-d*r*.3,-r*.5);wx.lineTo(d*r*.3,0);wx.lineTo(-d*r*.3,r*.5);wx.stroke();
+  }else{
+    wx.fillStyle='#1c6fd0';wx.strokeStyle='#fff';wx.lineWidth=r*.1;
+    wx.beginPath();wx.roundRect(-r*1.3,-r*.75,r*2.6,r*1.5,r*.15);wx.fill();wx.stroke();
+    wx.fillStyle='#fff';wx.font=`bold ${r*.7}px system-ui,sans-serif`;wx.fillText(p.texto,0,r*.04,r*2.3);
+  }
+}
+/* ---------- INTERIOR: painel, velocímetro, contagiros, combustível e volante ---------- */
+const fmt=s=>`${(s/60)|0}:${(s%60).toFixed(2).padStart(5,'0')}`;
+function gauge(cx,cy,r,v,max,step,lab,txt,sub,rpm){
+  const a0=.75*Math.PI,sw=1.5*Math.PI,n=Math.round(max/step);
+  ox.save();ox.translate(cx,cy);
+  ox.fillStyle='#050607';ox.beginPath();ox.arc(0,0,r,0,7);ox.fill();
+  ox.strokeStyle='#2a2d34';ox.lineWidth=r*.06;ox.stroke();
+  if(rpm!=null){ox.strokeStyle=rpm>.86?'#ff4040':'#2fc4b2';ox.lineWidth=r*.05;ox.beginPath();ox.arc(0,0,r*.92,a0,a0+sw*Math.min(1,rpm));ox.stroke()}
+  ox.fillStyle=ox.strokeStyle='#dfe3ea';ox.textAlign='center';ox.textBaseline='middle';
+  for(let i=0;i<=n;i++){
+    const a=a0+sw*i/n,co=Math.cos(a),si=Math.sin(a),L=lab(i);
+    ox.strokeStyle='#dfe3ea';ox.lineWidth=r*(L!==''?.035:.02);
+    ox.beginPath();ox.moveTo(co*r*.82,si*r*.82);ox.lineTo(co*r*.7,si*r*.7);ox.stroke();
+    if(L!==''){ox.font=`${r*.15}px system-ui,sans-serif`;ox.fillText(L,co*r*.56,si*r*.56)}
+  }
+  ox.font=`bold ${r*.3}px system-ui,sans-serif`;ox.fillText(txt,0,r*.4);
+  ox.font=`${r*.14}px system-ui,sans-serif`;ox.fillStyle='#8b919c';ox.fillText(sub,0,r*.62);
+  ox.rotate(a0+sw*Math.max(0,Math.min(1,v/max)));
+  ox.fillStyle='#ff3b30';ox.fillRect(-r*.1,-r*.018,r*.8,r*.036);
+  ox.rotate(-(a0+sw*Math.max(0,Math.min(1,v/max))));
+  ox.fillStyle='#22252b';ox.beginPath();ox.arc(0,0,r*.09,0,7);ox.fill();
+  ox.restore();
+}
+function wheel(cx,cy,R,ang){
+  ox.save();ox.translate(cx,cy);ox.rotate(ang);
+  ox.strokeStyle='#141417';ox.lineWidth=R*.13;ox.beginPath();ox.arc(0,0,R,0,7);ox.stroke();
+  ox.strokeStyle='#40444d';ox.lineWidth=R*.014;ox.beginPath();ox.arc(0,0,R*1.045,Math.PI*1.1,Math.PI*1.9);ox.stroke();
+  ox.fillStyle='#141417';ox.fillRect(-R,-R*.07,R*2,R*.14);ox.fillRect(-R*.07,0,R*.14,R);
+  ox.beginPath();ox.arc(0,0,R*.2,0,7);ox.fill();
+  ox.fillStyle='#e23b30';ox.fillRect(-R*.022,-R*1.06,R*.044,R*.12);     // marca das 12 horas
+  ox.restore();
+}
+function dash(){
+  const u=H/100,c=car;ox.clearRect(0,0,W,H);
+  let g=ox.createLinearGradient(0,0,0,7*u);g.addColorStop(0,'#0b0b0d');g.addColorStop(1,'#1b1c20');
+  ox.fillStyle=g;ox.fillRect(0,0,W,7*u);
+  ox.fillStyle='#101114';                                               // colunas A
+  for(const s of [0,1]){const X=v=>s?W-v:v;ox.beginPath();ox.moveTo(X(0),0);ox.lineTo(X(.14*W),0);ox.lineTo(X(.05*W),66*u);ox.lineTo(X(0),66*u);ox.fill()}
+  const mw=Math.min(.22*W,40*u),mx=W/2-mw/2,my=8*u;                     // retrovisor
+  ox.fillStyle='#0c0d10';ox.beginPath();ox.roundRect(mx-u,my-u,mw+2*u,7*u+2*u,2*u);ox.fill();
+  g=ox.createLinearGradient(0,my,0,my+7*u);g.addColorStop(0,'#7fa6c2');g.addColorStop(1,'#9fb08f');
+  ox.fillStyle=g;ox.beginPath();ox.roundRect(mx,my,mw,7*u,1.5*u);ox.fill();
+  g=ox.createLinearGradient(0,56*u,0,64*u);g.addColorStop(0,'#5a606b');g.addColorStop(1,'#20232a');   // capô
+  ox.fillStyle=g;ox.beginPath();ox.moveTo(.12*W,64*u);ox.quadraticCurveTo(.5*W,53*u,.88*W,64*u);ox.fill();
+  g=ox.createLinearGradient(0,62*u,0,100*u);g.addColorStop(0,'#26282e');g.addColorStop(.15,'#15161a');g.addColorStop(1,'#08080a');
+  ox.fillStyle=g;ox.beginPath();ox.moveTo(0,66*u);ox.quadraticCurveTo(W/2,58*u,W,66*u);ox.lineTo(W,H);ox.lineTo(0,H);ox.fill();
+  ox.fillStyle='#0b0b0d';ox.beginPath();ox.roundRect(W/2-30*u,68*u,60*u,26*u,5*u);ox.fill();
+  // Velocímetro do caminhão: 0 a 120 km/h.
+  gauge(W/2-15*u,81*u,10.5*u,c.vk,120,10,
+    i=>i%2?'':String(i*10),String(Math.round(c.vk)),'km/h · '+c.gearLabel,null);
+
+  // Conta-giros diesel: faixa operacional até 2.500 rpm.
+  gauge(W/2+14*u,81*u,10.5*u,c.rpm,3000,500,
+    i=>String(i*.5),(c.rpm/1000).toFixed(2),'x1000 rpm',c.rpm/3000);
+
+  ox.fillStyle='#dfe3ea';ox.textAlign='center';
+  ox.font=`bold ${2.0*u}px system-ui,sans-serif`;
+  ox.fillText('MARCHA '+(K.down&&Math.abs(c.spd)<.75?'R':c.gearLabel),W/2,96*u);
+
+  // Combustível em indicador compacto, sem competir com os dois mostradores.
+  const fuelPct=Math.max(0,Math.min(1,c.fuel/CFG.tanque));
+  const fx=W/2+27*u,fy=67*u,fw=13*u,fh=2.1*u;
+  ox.fillStyle='rgba(0,0,0,.68)';ox.beginPath();ox.roundRect(fx,fy,fw,fh,fh/2);ox.fill();
+  ox.fillStyle=fuelPct<.15?'#ffb020':'#2fc4b2';
+  ox.beginPath();ox.roundRect(fx,fy,fw*fuelPct,fh,fh/2);ox.fill();
+  ox.fillStyle='#dfe3ea';ox.textAlign='center';ox.font=`${1.45*u}px system-ui,sans-serif`;
+  ox.fillText('COMB. '+Math.round(c.fuel)+' L',fx+fw/2,fy+4*u);
+  if(fuelPct<.15&&(c.fuel===0||(performance.now()/400|0)%2)){
+    ox.fillStyle='#ffb020';ox.beginPath();ox.arc(fx+fw+u,fy+fh/2,u*.65,0,7);ox.fill();
+  }
+  wheel(W/2,104*u,40*u,c.steer*1.3);
+  // HUD de tempos
+  const hx=Math.max(.16*W,4*u),hy=9*u;
+  ox.fillStyle='rgba(0,0,0,.5)';ox.beginPath();ox.roundRect(hx,hy,24*u,12*u,2*u);ox.fill();
+  ox.fillStyle='#e9ecf1';ox.textAlign='left';ox.textBaseline='middle';
+  ox.font=`${2.2*u}px system-ui,sans-serif`;ox.fillText(`Volta ${c.laps+1}`,hx+2*u,hy+2.5*u);
+  ox.font=`bold ${3.6*u}px system-ui,sans-serif`;ox.fillText(fmt(c.t-c.lapT),hx+2*u,hy+6.4*u);
+  ox.font=`${2*u}px system-ui,sans-serif`;ox.fillStyle='#9aa1ad';ox.fillText('melhor '+(c.best?fmt(c.best):'--'),hx+2*u,hy+10*u);
+  // avisos
+  if(!engineOn){ox.textAlign='center';ox.font=`bold ${2.2*u}px system-ui,sans-serif`;ox.fillStyle='#ffca78';ox.fillText('MOTOR DESLIGADO · cronômetro pausado',W/2,hy+14*u)}
+  const m=!T.ok?'Carregando pista…':c.fuel<=0?'Sem combustível. Aperte R para reiniciar':c.off>.5?'Fora da pista':'';
+  if(m){ox.textAlign='center';ox.font=`bold ${3.2*u}px system-ui,sans-serif`;ox.fillStyle='rgba(0,0,0,.55)';ox.fillText(m,W/2+.2*u,36.2*u);ox.fillStyle='#ffd24a';ox.fillText(m,W/2,36*u)}
+}
+
+/* ---------- CONTROLE DO MOTOR ---------- */
+function atualizaBotaoMotor(){
+  const b=$('engineBtn');if(!b)return;
+  b.textContent=engineOn?'Desligar motor':'Ligar motor';
+  b.setAttribute('aria-pressed',String(engineOn));
+}
+function alternaMotor(){
+  engineOn=!engineOn;
+  if(!engineOn){K.up=0;car.thr=0;car.rpm=0;if(ac&&gn)gn.gain.setTargetAtTime(0,ac.currentTime,.025);if(dieselAudio)dieselAudio.pause();}
+  else if(ac&&ac.state==='suspended')ac.resume().catch(()=>{});
+  atualizaBotaoMotor();sound();
+}
+/* ---------- ÁUDIO: gravação real selecionada pelo usuário + fallback sintético ---------- */
+let ac,osc,gn,dieselAudio=null,dieselUrl=null;
+function carregarAudioDiesel(file){
+  if(!file)return;
+  if(dieselAudio){dieselAudio.pause();dieselAudio=null;}
+  if(dieselUrl)URL.revokeObjectURL(dieselUrl);
+  dieselUrl=URL.createObjectURL(file);
+  dieselAudio=new Audio(dieselUrl);dieselAudio.loop=true;dieselAudio.volume=.65;
+  if(engineOn)dieselAudio.play().catch(()=>{});
+}
+function audio(){
+  if(dieselAudio){
+    if(engineOn) dieselAudio.play().catch(()=>{});
+    return;
+  }
+
+  if(ac) {
+    if(ac.state === "suspended") ac.resume();
+    return;
+  }
+
+  try {
+    ac = new (window.AudioContext || window.webkitAudioContext)();
+
+    // Compressor para dar mais presença e volume ao motor
+    const compressor = ac.createDynamicsCompressor();
+    compressor.threshold.value = -20;
+    compressor.knee.value = 18;
+    compressor.ratio.value = 5;
+    compressor.attack.value = 0.01;
+    compressor.release.value = 0.25;
+
+    // Volume geral — controlado também pela função sound()
+    gn = ac.createGain();
+    gn.gain.value = 0;
+
+    // Filtro grave
+    const filtro = ac.createBiquadFilter();
+    filtro.type = "lowpass";
+    filtro.frequency.value = 320;
+    filtro.Q.value = 1.2;
+
+    // Oscilador principal: ronco grave do diesel
+    osc = ac.createOscillator();
+    osc.type = "sawtooth";
+    osc.frequency.value = 42;
+
+    // Pulsação dos cilindros
+    const pistao = ac.createOscillator();
+    pistao.type = "square";
+    pistao.frequency.value = 22;
+
+    const pulsacao = ac.createGain();
+    pulsacao.gain.value = 5;
+
+    pistao.connect(pulsacao);
+    pulsacao.connect(osc.frequency);
+
+    // Grave adicional para dar peso ao motor
+    const grave = ac.createOscillator();
+    grave.type = "triangle";
+    grave.frequency.value = 38;
+
+    const graveVolume = ac.createGain();
+    graveVolume.gain.value = 0.45;
+    grave.connect(graveVolume);
+    graveVolume.connect(filtro);
+
+    // Ruído mecânico do motor
+    const tamanho = ac.sampleRate * 2;
+    const buffer = ac.createBuffer(1, tamanho, ac.sampleRate);
+    const dados = buffer.getChannelData(0);
+
+    for(let i = 0; i < tamanho; i++){
+      dados[i] = (Math.random() * 2 - 1) * 0.35;
+    }
+
+    const ruido = ac.createBufferSource();
+    ruido.buffer = buffer;
+    ruido.loop = true;
+
+    const filtroRuido = ac.createBiquadFilter();
+    filtroRuido.type = "lowpass";
+    filtroRuido.frequency.value = 180;
+
+    const volumeRuido = ac.createGain();
+    volumeRuido.gain.value = 0.12;
+
+    ruido.connect(filtroRuido);
+    filtroRuido.connect(volumeRuido);
+    volumeRuido.connect(filtro);
+
+    // Conexões finais
+    osc.connect(filtro);
+    filtro.connect(gn);
+    gn.connect(compressor);
+    compressor.connect(ac.destination);
+
+    // Inicia os componentes
+    osc.start();
+    pistao.start();
+    grave.start();
+    ruido.start();
+
+  } catch(e) {
+    console.error("Erro ao iniciar áudio diesel:", e);
+    ac = null;
+  }
+}
+function sound(){
+  if(dieselAudio){
+    if(engineOn&&car.fuel>0){
+      dieselAudio.playbackRate=Math.max(.72,Math.min(1.45,car.rpm/1500));
+      dieselAudio.volume=.30+car.thr*.48;
+      if(dieselAudio.paused)dieselAudio.play().catch(()=>{});
+    }else dieselAudio.pause();
+    return;
+  }
+  if(!ac)return;
+  osc.frequency.setTargetAtTime(engineOn?18+car.rpm/34:18,ac.currentTime,.08);
+  gn.gain.setTargetAtTime(engineOn&&car.fuel>0?.025+.055*car.thr:0,ac.currentTime,.08);
+}
+
+/* ---------- ENTRADAS E LOOP ---------- */
+const keys={ArrowUp:'up',KeyW:'up',ArrowDown:'down',KeyS:'down',ArrowLeft:'left',KeyA:'left',ArrowRight:'right',KeyD:'right',Space:'space'};
+addEventListener('keydown',e=>{
+  if(keys[e.code]){if(engineOn||keys[e.code]!=='up')K[keys[e.code]]=1;e.preventDefault();if(engineOn)audio();$('hint').style.opacity=0}
+  if(e.code==='KeyE'&&!e.repeat)trocarMarcha(1);
+  if(e.code==='KeyQ'&&!e.repeat)trocarMarcha(-1);
+  if(e.code==='KeyR'&&T.ok)reset();
+});
+addEventListener('keyup',e=>{if(keys[e.code])K[keys[e.code]]=0});
+document.querySelectorAll('#tc button').forEach(b=>{
+  const k=b.dataset.k;
+  b.addEventListener('pointerdown',e=>{e.preventDefault();if(engineOn||k!=='up')K[k]=1;if(engineOn)audio();$('hint').style.opacity=0});
+  for(const ev of ['pointerup','pointerleave','pointercancel'])b.addEventListener(ev,()=>K[k]=0);
+});
+function pick(file){
+  if(!file)return;
+  const fail=()=>alert('Não foi possível ler essa imagem. Use PNG, JPG ou SVG.');
+  if(/svg/.test(file.type)||/\.svg$/i.test(file.name))return file.text().then(loadSvgText).then(reset).catch(fail);
+  const u=URL.createObjectURL(file);
+  loadTrack(u).then(()=>{reset();URL.revokeObjectURL(u)}).catch(fail);
+}
+$('f').onchange=e=>pick(e.target.files[0]);
+$('dieselFile').onchange=e=>carregarAudioDiesel(e.target.files[0]);
+$('loadDiesel').onclick=()=>$('dieselFile').click();
+$('engineBtn').onclick=alternaMotor;
+atualizaBotaoMotor();
+$('sc').onchange=e=>{CFG.metrosPorPixel=+e.target.value||.2;if(T.ok)reset()};
+$('rs').onclick=()=>{if(T.ok)reset()};
+addEventListener('dragover',e=>e.preventDefault());
+addEventListener('drop',e=>{e.preventDefault();pick(e.dataTransfer.files[0])});
+addEventListener('resize',resize);
+
+let last=0;
+function loop(ts){
+  const dt=Math.min(.05,(ts-last)/1000||0);last=ts;
+  if(T.ok){step(dt);drawWorld();sound()}
+  dash();requestAnimationFrame(loop);
+}
+window.Simulador={CFG,car,T,MARCHAS,loadTrack,loadSvgText,reset,alternaMotor,trocarMarcha,carregarAudioDiesel,get engineOn(){return engineOn}};      // API para mexer pelo console
+resize();
+loadSvgText(new XMLSerializer().serializeToString($('pista-svg'))).then(reset);   // pista padrão: o SVG inline acima
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

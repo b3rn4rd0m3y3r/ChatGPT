@@ -1,0 +1,83 @@
+{
+  "format": "WebAccess",
+  "version": 1,
+  "databaseName": "MeuBanco",
+  "tables": [
+    {
+      "id": "tbl_1793888197225_7p18rh",
+      "name": "Fornecedores",
+      "fields": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "primaryKey": true
+        },
+        {
+          "name": "nome",
+          "type": "TEXT",
+          "primaryKey": false
+        },
+        {
+          "name": "telefone",
+          "type": "TEXT",
+          "primaryKey": false
+        }
+      ],
+      "records": [
+        {
+          "id": "rec_1793888217904_5umdkx",
+          "values": {
+            "id": 1,
+            "nome": "Bernardo",
+            "telefone": "33445566"
+          }
+        },
+        {
+          "id": "rec_1793888249354_w4lrzc",
+          "values": {
+            "id": 2,
+            "nome": "Garoupa de Souza",
+            "telefone": "33445577"
+          }
+        },
+        {
+          "id": "sql_1794427644607_2_7wx18v",
+          "values": {
+            "id": 3,
+            "nome": "Leonardo",
+            "telefone": "33225544"
+          }
+        }
+      ]
+    },
+    {
+      "id": "tbl_1794321339984_ai05l5",
+      "name": "Pedidos",
+      "fields": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "primaryKey": true
+        },
+        {
+          "name": "IdFornec",
+          "type": "INTEGER",
+          "primaryKey": false
+        },
+        {
+          "name": "Descri",
+          "type": "TEXT",
+          "primaryKey": false
+        },
+        {
+          "name": "Valor",
+          "type": "REAL",
+          "primaryKey": false
+        }
+      ],
+      "records": []
+    }
+  ],
+  "relationships": [],
+  "savedAt": "2026-11-11T20:08:38.183Z"
+}

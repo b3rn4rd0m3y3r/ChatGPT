@@ -1,0 +1,1 @@
+Os arquivos sql-wasm.js e sql-wasm.wasm serão copiados para esta pasta na etapa de integração do SQL.js.\n
