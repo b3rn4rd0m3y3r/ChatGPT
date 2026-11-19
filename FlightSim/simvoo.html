@@ -1,0 +1,1107 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Simulador de Voo — Cidade e Aeroporto</title>
+<style>
+:root{color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#07121b;font-family:Arial,Helvetica,sans-serif}
+#view{position:absolute;inset:0;width:100%;height:100%;display:block;background:#73b5e8}
+#shade{position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,rgba(0,0,0,.42),transparent 12%,transparent 88%,rgba(0,0,0,.32)),linear-gradient(0deg,rgba(0,0,0,.35),transparent 35%)}
+#topbar{position:absolute;top:10px;left:50%;transform:translateX(-50%);display:flex;gap:12px;align-items:center;background:rgba(5,13,22,.72);border:1px solid #607889;border-radius:6px;padding:7px 12px;color:#eaf5ff;font-size:12px;letter-spacing:.08em;box-shadow:0 3px 14px #0007;white-space:nowrap}
+#heading{font-weight:bold;font-size:18px;color:#ffd65a;min-width:48px;text-align:center}
+#topbar span small{display:block;color:#91aabc;font-size:9px;text-align:center}
+#rightHud{position:absolute;right:14px;top:13px;width:100px;color:#d9f2ff;text-align:center;text-shadow:0 1px 4px #000;font-size:10px}
+#compass{width:76px;height:76px;border:2px solid #8ca4b4;border-radius:50%;margin:auto auto 8px;background:radial-gradient(circle,#142735,#050b11);position:relative;box-shadow:0 2px 10px #0009}
+#compass:before{content:'N';position:absolute;top:3px;left:33px;color:#ffdb70;font-weight:bold}
+#compassNeedle{position:absolute;width:2px;height:29px;background:#f1d26a;left:35px;top:9px;transform-origin:bottom;box-shadow:0 0 4px #ffd}
+#compassNeedle:after{content:'';position:absolute;top:-3px;left:-4px;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:8px solid #f4e5a0}
+#vsi{height:140px;width:20px;border:1px solid #9ab0bd;border-radius:4px;margin:7px auto;background:linear-gradient(90deg,#111,#28343c,#111);position:relative}
+#vsiFill{position:absolute;bottom:50%;left:3px;width:12px;height:3px;background:#6cf;box-shadow:0 0 6px #6cf}
+#cockpit{position:absolute;bottom:0;left:0;width:100%;height:clamp(145px,25vh,225px);background:linear-gradient(#20262c,#080b0e 28%,#030506);border-top:3px solid #59616a;box-shadow:0 -8px 30px #0009;padding:12px 3vw 8px;display:flex;align-items:center;justify-content:center;gap:clamp(10px,2.5vw,40px)}
+.gauge{width:clamp(76px,10vw,116px);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle at 50% 48%,#15191d 0 57%,#07090b 59% 68%,#626970 70% 73%,#090b0d 75%);border:1px solid #79828a;position:relative;box-shadow:0 3px 8px #000,inset 0 0 12px #000}
+.gauge canvas{width:100%;height:100%;display:block}
+.gaugeLabel{position:absolute;bottom:11%;width:100%;text-align:center;font-size:clamp(8px,1vw,11px);color:#cbd3d8;letter-spacing:.1em;text-shadow:0 1px 3px #000}
+.verticals{height:82%;display:flex;gap:clamp(9px,1.8vw,24px);align-items:center}
+.vGauge{height:90%;width:19px;background:#111;border:1px solid #717b82;border-radius:3px;position:relative;box-shadow:inset 0 0 7px #000}
+.vGauge:before{content:'';position:absolute;left:3px;right:3px;top:5px;bottom:5px;background:linear-gradient(to top,#c33 0 9%,#d9bd52 9% 20%,#2d8c56 20% 85%,#d9bd52 85% 94%,#c33 94%);opacity:.7}
+.vNeedle{position:absolute;left:-4px;width:25px;height:3px;background:#f2f2f2;top:50%;box-shadow:0 0 4px #fff}
+.vLabel{position:absolute;bottom:-16px;left:-9px;width:36px;text-align:center;font-size:8px;color:#cbd3d8}
+.gaugeGroup{display:flex;flex-direction:column;align-items:center;gap:4px}
+.gaugeGroup small{color:#b9c6cd;font-size:9px;letter-spacing:.08em}
+#controls{position:absolute;left:14px;top:14px;display:flex;flex-direction:column;gap:7px}
+button,.chip{border:1px solid #8197a5;background:rgba(5,15,23,.78);color:#eaf6ff;border-radius:5px;padding:8px 11px;font-size:11px;cursor:pointer;box-shadow:0 2px 8px #0006}
+button:hover{background:#1e3a4a}
+button.primary{background:#a46a16;border-color:#ffd27a;color:#fff;font-weight:bold}
+#help{position:absolute;left:14px;bottom:calc(clamp(145px,25vh,225px) + 12px);max-width:265px;padding:9px 11px;border-radius:5px;background:#07121bd1;color:#dcebf4;font-size:11px;line-height:1.55;border:1px solid #526875}
+#help b{color:#ffdc83}
+#status{position:absolute;right:14px;bottom:calc(clamp(145px,25vh,225px) + 12px);padding:8px 10px;background:#07121bd1;border:1px solid #526875;border-radius:5px;color:#e9f4fb;font-size:11px;text-align:right;line-height:1.6}
+#startOverlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(#071522a8,#06101bd9);z-index:5}
+#startCard{width:min(560px,90vw);padding:28px;border:1px solid #8ba2b2;border-radius:10px;background:linear-gradient(145deg,#1b3545,#08131d);box-shadow:0 15px 50px #000b;text-align:center;color:#eaf6ff}
+#startCard h1{font-size:clamp(22px,4vw,34px);margin:0 0 8px}
+#startCard p{color:#b9cbd6;line-height:1.55;font-size:14px}
+#startCard .primary{font-size:14px;padding:12px 22px;margin-top:8px}
+#startCard .note{font-size:11px;color:#91a8b7;margin-top:14px}
+@media(max-width:650px){
+ #cockpit{gap:5px;padding:8px 5px}
+ .gauge{width:18vw}
+ .verticals{gap:7px}
+ .vGauge{width:13px}
+ #help{max-width:190px;font-size:9px}
+ #status{font-size:9px}
+ #rightHud{right:5px;transform:scale(.8);transform-origin:top right}
+ #controls{left:5px;top:5px}
+ button{padding:6px 8px}
+}
+</style>
+</head>
+<body>
+
+<canvas id="view"></canvas>
+<div id="shade"></div>
+
+<div id="topbar">
+ <span><small>RUMO</small><b id="heading">000°</b></span>
+ <span><small>ALTITUDE</small><b id="altTop">450 m</b></span>
+ <span><small>VELOCIDADE</small><b id="spdTop">95 kt</b></span>
+ <span><small>RPM</small><b id="rpmTop">1.900</b></span>
+</div>
+
+<div id="rightHud">
+ <div id="compass"><div id="compassNeedle"></div></div>
+ <div>VARIÔMETRO</div>
+ <div id="vsi"><div id="vsiFill"></div></div>
+ <div id="vsiText">0 m/min</div>
+</div>
+
+<div id="controls">
+ <button id="soundBtn">♪ LIGAR MOTOR</button>
+ <button id="resetBtn">↺ REINICIAR VOO</button>
+ <button id="viewBtn">◉ VISÃO LIVRE</button>
+</div>
+
+<div id="help">
+ <b>COMANDOS DE VOO</b><br>
+ ↑ / W — cabrar &nbsp; ↓ / S — picar<br>
+ ← / A e → / D — inclinar asas<br>
+ Q / E — leme &nbsp; Shift / Ctrl — potência<br>
+ <b>Mouse / toque:</b> ajuste fino de atitude
+</div>
+
+<div id="status">
+ MOTOR: <b id="engineState">DESLIGADO</b><br>
+ FLAPS: <b>RECOLHIDOS</b><br>
+ TRIM: <b>0%</b>
+</div>
+
+<div id="cockpit">
+ <div class="gaugeGroup"><div class="gauge"><canvas id="gSpeed" width="240" height="240"></canvas><div class="gaugeLabel">VELOCIDADE</div></div></div>
+ <div class="gaugeGroup"><div class="gauge"><canvas id="gRpm" width="240" height="240"></canvas><div class="gaugeLabel">RPM MOTOR</div></div></div>
+ <div class="gaugeGroup"><div class="gauge"><canvas id="gAtt" width="240" height="240"></canvas><div class="gaugeLabel">ATITUDE</div></div></div>
+ <div class="gaugeGroup"><div class="gauge"><canvas id="gAlt" width="240" height="240"></canvas><div class="gaugeLabel">ALTÍMETRO</div></div></div>
+ <div class="verticals">
+  <div class="vGauge"><div class="vNeedle" id="fuelNeedle"></div><div class="vLabel">COMB</div></div>
+  <div class="vGauge"><div class="vNeedle" id="tempNeedle"></div><div class="vLabel">TEMP</div></div>
+  <div class="vGauge"><div class="vNeedle" id="oilNeedle"></div><div class="vLabel">ÓLEO</div></div>
+ </div>
+</div>
+
+<div id="startOverlay">
+ <div id="startCard">
+  <h1>SIMULADOR DE VOO</h1>
+  <p>Uma aeronave monomotora sobrevoando uma cidade 3D com aeroporto, pista, bairros, bosques e pontos de referência. Cabine em primeira pessoa com instrumentos analógicos.</p>
+  <button class="primary" id="startBtn">LIGAR MOTOR E INICIAR VOO</button>
+  <div class="note">O áudio é ativado após seu clique, conforme as regras do navegador. Recomendado usar fones.</div>
+ </div>
+</div>
+
+<script>
+(()=>{
+'use strict';
+
+const canvas=document.getElementById('view');
+const ctx=canvas.getContext('2d');
+
+let W=innerWidth,H=innerHeight;
+let dpr=Math.min(devicePixelRatio||1,2);
+
+function resize(){
+ W=innerWidth;
+ H=innerHeight;
+ canvas.width=Math.round(W*dpr);
+ canvas.height=Math.round(H*dpr);
+ canvas.style.width=W+'px';
+ canvas.style.height=H+'px';
+ ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+addEventListener('resize',resize);
+resize();
+
+const state={
+ x:0,z:-420,y:450,
+ heading:0,pitch:-.015,roll:0,
+ speed:49,throttle:.58,rpm:1900,vs:0,
+ started:false,free:false,mouse:false,
+ keys:{},fuel:0.88
+};
+
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const rad=d=>d*Math.PI/180;
+const deg=r=>r*180/Math.PI;
+
+// CIDADE PROCEDURAL
+const buildings=[];
+let seed=91;
+
+function rand(){
+ seed=(seed*1664525+1013904223)>>>0;
+ return seed/4294967296;
+}
+
+for(let z=-1500;z<1500;z+=190){
+ for(let x=-1500;x<1500;x+=190){
+  if(Math.abs(x)<210&&z>480&&z<1950)continue;
+  if(Math.abs(x)<170&&Math.abs(z)<170)continue;
+
+  let park=rand()<.14;
+
+  for(let j=0;j<(park?0:3+Math.floor(rand()*4));j++){
+   let bx=x+(rand()-.5)*125;
+   let bz=z+(rand()-.5)*125;
+   let typ=rand();
+
+   buildings.push({
+    x:bx,z:bz,
+    w:typ>.84?55:24+rand()*26,
+    d:typ>.84?48:22+rand()*30,
+    h:typ>.90?95+rand()*75:typ>.65?38+rand()*45:10+rand()*23,
+    color:['#d9c9a9','#c6bca6','#b8c6c9','#d3b7a0','#aebcaa','#c4c8cf'][Math.floor(rand()*6)],
+    roof:rand()
+   });
+  }
+ }
+}
+
+const trees=[];
+for(let i=0;i<430;i++){
+ trees.push({
+  x:(rand()-.5)*2700,
+  z:(rand()-.5)*3000,
+  y:10+rand()*4,
+  r:9+rand()*9
+ });
+}
+
+const clouds=[];
+for(let i=0;i<42;i++){
+ clouds.push({
+  x:(rand()-.5)*2600,
+  z:(rand()-.5)*2600,
+  y:850+rand()*650,
+  s:45+rand()*90
+ });
+}
+
+const landmarks=[
+ {x:0,z:1120,w:150,d:1250,type:'runway'},
+ {x:0,z:1760,w:700,d:400,type:'airport'},
+ {x:-640,z:280,w:170,d:110,type:'football'},
+ {x:610,z:430,w:220,d:180,type:'square'},
+ {x:940,z:-120,w:95,d:75,type:'fuel'},
+ {x:-880,z:-420,w:190,d:125,type:'parking'},
+ {x:300,z:900,w:240,d:100,type:'shops'}
+];
+
+function camera(p){
+ let dx=p.x-state.x;
+ let dz=p.z-state.z;
+ let sy=Math.sin(state.heading);
+ let cy=Math.cos(state.heading);
+ let right=dx*cy-dz*sy;
+ let forward=dx*sy+dz*cy;
+ let depth=forward;
+ let focal=Math.min(W,H)*.82;
+ let horizon=H*.43+state.pitch*focal;
+ let yy=(state.y-p.y)*focal/Math.max(8,depth)+horizon;
+ let xx=W/2+right*focal/Math.max(8,depth);
+ let rr=state.roll;
+ let ox=xx-W/2;
+ let oy=yy-horizon;
+
+ return {
+  x:W/2+ox*Math.cos(rr)-oy*Math.sin(rr),
+  y:horizon+ox*Math.sin(rr)+oy*Math.cos(rr),
+  depth,
+  scale:focal/Math.max(8,depth)
+ };
+}
+
+function poly(points,fill,stroke){
+ ctx.beginPath();
+ points.forEach((p,i)=>{
+  let q=camera(p);
+  if(i)ctx.lineTo(q.x,q.y);
+  else ctx.moveTo(q.x,q.y);
+ });
+ ctx.closePath();
+ ctx.fillStyle=fill;
+ ctx.fill();
+ if(stroke){
+  ctx.strokeStyle=stroke;
+  ctx.lineWidth=1;
+  ctx.stroke();
+ }
+}
+
+function drawSky(){
+ let g=ctx.createLinearGradient(0,0,0,H*.68);
+ g.addColorStop(0,'#2878b8');
+ g.addColorStop(.55,'#66b2e7');
+ g.addColorStop(1,'#c0dff0');
+ ctx.fillStyle=g;
+ ctx.fillRect(0,0,W,H);
+
+ let hz=H*.43+state.pitch*Math.min(W,H)*.82;
+ let ground=ctx.createLinearGradient(0,hz,0,H);
+ ground.addColorStop(0,'#8db77b');
+ ground.addColorStop(.35,'#64945d');
+ ground.addColorStop(1,'#355c3b');
+ ctx.fillStyle=ground;
+ ctx.fillRect(0,hz,W,H-hz);
+
+ ctx.fillStyle='#719c78';
+ ctx.beginPath();
+ ctx.moveTo(0,hz+8);
+ for(let x=0;x<=W;x+=35){
+  ctx.lineTo(x,hz+Math.sin(x*.009+state.heading*2)*9+Math.sin(x*.021)*4);
+ }
+ ctx.lineTo(W,hz+35);
+ ctx.lineTo(0,hz+35);
+ ctx.fill();
+}
+
+function drawGround(){
+ poly([
+  {x:-6000,z:-6000,y:0},
+  {x:6000,z:-6000,y:0},
+  {x:6000,z:6000,y:0},
+  {x:-6000,z:6000,y:0}
+ ],'#648e58');
+
+ for(let x=-1600;x<=1600;x+=190){
+  poly([
+   {x:x-9,z:-2400,y:1},
+   {x:x+9,z:-2400,y:1},
+   {x:x+9,z:2400,y:1},
+   {x:x-9,z:2400,y:1}
+  ],'#303b40');
+ }
+
+ for(let z=-2200;z<=2200;z+=190){
+  poly([
+   {x:-2400,z:z-9,y:1},
+   {x:2400,z:z-9,y:1},
+   {x:2400,z:z+9,y:1},
+   {x:-2400,z:z+9,y:1}
+  ],'#303b40');
+ }
+
+ for(let x=-1600;x<=1600;x+=190){
+  for(let z=-2200;z<2200;z+=65){
+   poly([
+    {x:x-1,z:z,y:1.2},
+    {x:x+1,z:z,y:1.2},
+    {x:x+1,z:z+23,y:1.2},
+    {x:x-1,z:z+23,y:1.2}
+   ],'#c5c1a0');
+  }
+ }
+
+ for(let z=-2200;z<=2200;z+=190){
+  for(let x=-2400;x<2400;x+=65){
+   poly([
+    {x:x,z:z-1,y:1.2},
+    {x:x+23,z:z-1,y:1.2},
+    {x:x+23,z:z+1,y:1.2},
+    {x:x,z:z+1,y:1.2}
+   ],'#c5c1a0');
+  }
+ }
+
+ // PÁTIO E PISTA
+ poly([
+  {x:-390,z:550,y:2},{x:390,z:550,y:2},
+  {x:390,z:1900,y:2},{x:-390,z:1900,y:2}
+ ],'#777d7c');
+
+ poly([
+  {x:-76,z:510,y:3},{x:76,z:510,y:3},
+  {x:76,z:1770,y:3},{x:-76,z:1770,y:3}
+ ],'#252a2d','#d5d5cf');
+
+ for(let z=550;z<1700;z+=100){
+  poly([
+   {x:-2,z:z,y:4},{x:2,z:z,y:4},
+   {x:2,z:z+48,y:4},{x:-2,z:z+48,y:4}
+  ],'#f3f0d9');
+ }
+
+ for(let side of [-1,1]){
+  poly([
+   {x:side*88,z:520,y:4},{x:side*92,z:520,y:4},
+   {x:side*92,z:1760,y:4},{x:side*88,z:1760,y:4}
+  ],'#eee');
+ }
+
+ for(let side=-5;side<=5;side++){
+  poly([
+   {x:side*12-3,z:1698,y:4},
+   {x:side*12+3,z:1698,y:4},
+   {x:side*12+3,z:1725,y:4},
+   {x:side*12-3,z:1725,y:4}
+  ],'#fff');
+ }
+
+ // PONTOS DE REFERÊNCIA
+ for(const l of landmarks){
+  if(l.type==='runway'||l.type==='airport')continue;
+  let x=l.x,z=l.z,w=l.w,d=l.d;
+
+  if(l.type==='football'){
+   poly([
+    {x:x-w/2,z:z-d/2,y:2},{x:x+w/2,z:z-d/2,y:2},
+    {x:x+w/2,z:z+d/2,y:2},{x:x-w/2,z:z+d/2,y:2}
+   ],'#38854b','#eee');
+
+   poly([
+    {x:x-w/2+7,z:z-d/2+7,y:3},
+    {x:x+w/2-7,z:z-d/2+7,y:3},
+    {x:x+w/2-7,z:z+d/2-7,y:3},
+    {x:x-w/2+7,z:z+d/2-7,y:3}
+   ],'#398f4c','#eee');
+
+   poly([
+    {x:x-1,z:z-d/2+7,y:4},{x:x+1,z:z-d/2+7,y:4},
+    {x:x+1,z:z+d/2-7,y:4},{x:x-1,z:z+d/2-7,y:4}
+   ],'#eee');
+  }
+
+  if(l.type==='square'){
+   poly([
+    {x:x-w/2,z:z-d/2,y:2},{x:x+w/2,z:z-d/2,y:2},
+    {x:x+w/2,z:z+d/2,y:2},{x:x-w/2,z:z+d/2,y:2}
+   ],'#b8b39a');
+
+   poly([
+    {x:x-25,z:z-25,y:4},{x:x+25,z:z-25,y:4},
+    {x:x+25,z:z+25,y:4},{x:x-25,z:z+25,y:4}
+   ],'#d3c5a2');
+  }
+
+  if(l.type==='fuel'||l.type==='shops'||l.type==='parking'){
+   poly([
+    {x:x-w/2,z:z-d/2,y:2},{x:x+w/2,z:z-d/2,y:2},
+    {x:x+w/2,z:z+d/2,y:2},{x:x-w/2,z:z+d/2,y:2}
+   ],l.type==='parking'?'#555b5d':'#8c9990');
+  }
+ }
+}
+
+function drawTrees(){
+ for(const t of trees){
+  if(Math.abs(t.x)<105&&t.z>480&&t.z<1900)continue;
+  let p=camera(t);
+  if(p.depth<30||p.depth>2700||p.y>H+100)continue;
+  let r=t.r*p.scale;
+  if(r<1)continue;
+
+  ctx.fillStyle='#244c35';
+  ctx.beginPath();
+  ctx.ellipse(p.x,p.y,r*1.2,r*.45,0,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.fillStyle='#397c43';
+  ctx.beginPath();
+  ctx.arc(p.x,p.y-r*.55,r,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.fillStyle='#579557';
+  ctx.beginPath();
+  ctx.arc(p.x-r*.25,p.y-r*.85,r*.57,0,Math.PI*2);
+  ctx.fill();
+ }
+}
+
+function shade(hex,k){
+ let n=parseInt(hex.slice(1),16);
+ let r=(n>>16)&255,g=(n>>8)&255,b=n&255;
+ return `rgb(${Math.round(r*k)},${Math.round(g*k)},${Math.round(b*k)})`;
+}
+
+function drawBuildings(){
+ let list=buildings.map(b=>({
+  ...b,
+  depth:(b.x-state.x)*Math.sin(state.heading)+(b.z-state.z)*Math.cos(state.heading)
+ })).filter(b=>b.depth>30&&b.depth<2600).sort((a,b)=>b.depth-a.depth);
+
+ for(const b of list){
+  let x=b.x,z=b.z,w=b.w,d=b.d,h=b.h;
+  let a={x:x-w/2,z:z-d/2,y:0};
+  let c={x:x+w/2,z:z-d/2,y:0};
+  let e={x:x+w/2,z:z+d/2,y:0};
+  let f={x:x-w/2,z:z+d/2,y:0};
+  let at=[a,c,e,f];
+  let top=at.map(v=>({x:v.x,z:v.z,y:h}));
+  let q=at.map(camera);
+
+  if(q.every(v=>v.y>H+100))continue;
+
+  poly([a,c,{x:c.x,z:c.z,y:h},{x:a.x,z:a.z,y:h}],shade(b.color,.72));
+  poly([c,e,{x:e.x,z:e.z,y:h},{x:c.x,z:c.z,y:h}],shade(b.color,.55));
+  poly(top,b.color);
+
+  if(h>35){
+   for(let wy=9;wy<h-5;wy+=17){
+    for(let wx=-w/2+6;wx<w/2-3;wx+=13){
+     let p=camera({x:x+wx,z:z-d/2-.3,y:wy});
+     if(p.depth>40&&p.depth<1100&&p.x>0&&p.x<W&&p.y>0&&p.y<H){
+      ctx.fillStyle='#9fd0d6';
+      ctx.globalAlpha=.6;
+      ctx.fillRect(p.x,p.y,Math.max(1,3*p.scale),Math.max(1,4*p.scale));
+      ctx.globalAlpha=1;
+     }
+    }
+   }
+  }
+ }
+}
+
+function drawBox(x,z,w,d,h,col){
+ let a={x:x-w/2,z:z-d/2,y:0};
+ let b={x:x+w/2,z:z-d/2,y:0};
+ let c={x:x+w/2,z:z+d/2,y:0};
+ let e={x:x-w/2,z:z+d/2,y:0};
+
+ poly([a,b,{x:b.x,z:b.z,y:h},{x:a.x,z:a.z,y:h}],shade(col,.72));
+ poly([b,c,{x:c.x,z:c.z,y:h},{x:b.x,z:b.z,y:h}],shade(col,.58));
+ poly([
+  {x:a.x,z:a.z,y:h},{x:b.x,z:b.z,y:h},
+  {x:c.x,z:c.z,y:h},{x:e.x,z:e.z,y:h}
+ ],col);
+}
+
+function drawLandmarkBuildings(){
+ for(let [x,z,w,d,h,col] of [
+  [-210,1810,130,90,24,'#c6c5b8'],
+  [210,1820,145,95,19,'#d4d0c3'],
+  [-270,1640,70,80,16,'#b9c2c3'],
+  [930,-120,48,38,12,'#e0d5ba'],
+  [-880,-420,120,65,9,'#a9b0ae'],
+  [300,900,180,55,14,'#c9bca5']
+ ]){
+  drawBox(x,z,w,d,h,col);
+ }
+
+ let p=camera({x:610,z:430,y:18});
+ if(p.depth>20&&p.depth<1900){
+  let r=13*p.scale;
+  ctx.fillStyle='#9c4739';
+  ctx.beginPath();
+  ctx.moveTo(p.x-r*1.7,p.y);
+  ctx.lineTo(p.x,p.y-r);
+  ctx.lineTo(p.x+r*1.7,p.y);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle='#e8d7b0';
+  ctx.fillRect(p.x-r*.12,p.y-r*.1,Math.max(2,r*.24),r);
+ }
+
+ for(let i=0;i<75;i++){
+  let x=-1120+(i%10)*24;
+  let z=780+Math.floor(i/10)*26;
+  let p=camera({x,z,y:0});
+  if(p.depth>20&&p.depth<2200){
+   let r=8*p.scale;
+   ctx.fillStyle='#2b6339';
+   ctx.beginPath();
+   ctx.arc(p.x,p.y-r*.6,r,0,7);
+   ctx.fill();
+  }
+ }
+}
+
+function drawClouds(){
+ for(const c of clouds){
+  let p=camera(c);
+  if(p.depth<30||p.depth>3000)continue;
+  let r=c.s*p.scale;
+  if(r<3)continue;
+
+  ctx.save();
+  ctx.globalAlpha=.92;
+  ctx.fillStyle='#e8f1f2';
+  ctx.shadowColor='#718da0';
+  ctx.shadowBlur=Math.min(15,r*.15);
+
+  for(let i=0;i<5;i++){
+   let xx=p.x+(i-2)*r*.35;
+   let yy=p.y+Math.sin(i*1.7)*r*.12;
+   ctx.beginPath();
+   ctx.ellipse(xx,yy,r*.42,r*.24,0,0,7);
+   ctx.fill();
+  }
+  ctx.restore();
+ }
+}
+
+function draw(){
+ drawSky();
+ drawGround();
+ drawTrees();
+ drawBuildings();
+ drawLandmarkBuildings();
+ drawClouds();
+
+ ctx.fillStyle='#090e12';
+ ctx.beginPath();
+ ctx.moveTo(0,0);
+ ctx.lineTo(W*.035,0);
+ ctx.lineTo(W*.16,H*.58);
+ ctx.lineTo(0,H*.64);
+ ctx.closePath();
+ ctx.fill();
+
+ ctx.beginPath();
+ ctx.moveTo(W,0);
+ ctx.lineTo(W*.98,0);
+ ctx.lineTo(W*.87,H*.56);
+ ctx.lineTo(W,H*.63);
+ ctx.closePath();
+ ctx.fill();
+
+ let grad=ctx.createLinearGradient(0,H*.55,0,H*.68);
+ grad.addColorStop(0,'#0a111500');
+ grad.addColorStop(1,'#090e12cc');
+ ctx.fillStyle=grad;
+ ctx.fillRect(0,H*.53,W,H*.16);
+}
+
+// INSTRUMENTOS ANALÓGICOS
+function gauge(id,value,min,max,label,opts={}){
+ let c=document.getElementById(id);
+ let g=c.getContext('2d');
+ let w=240,h=240,cx=120,cy=120;
+
+ g.clearRect(0,0,w,h);
+ g.save();
+ g.translate(cx,cy);
+
+ let start=rad(135),end=rad(405);
+ g.strokeStyle='#b9c5cb';
+ g.lineWidth=3;
+ g.beginPath();
+ g.arc(0,0,91,start,end);
+ g.stroke();
+
+ let ticks=opts.ticks||10;
+
+ for(let i=0;i<=ticks;i++){
+  let a=start+(end-start)*i/ticks;
+  g.strokeStyle=i>ticks*.85?'#e45b45':'#d5dce0';
+  g.lineWidth=i%2===0?4:2;
+  g.beginPath();
+  g.moveTo(Math.cos(a)*82,Math.sin(a)*82);
+  g.lineTo(Math.cos(a)*94,Math.sin(a)*94);
+  g.stroke();
+
+  if(i%2===0){
+   g.fillStyle='#dce4e8';
+   g.font='15px Arial';
+   g.textAlign='center';
+   g.textBaseline='middle';
+   let v=min+(max-min)*i/ticks;
+   g.fillText(Math.round(v),Math.cos(a)*67,Math.sin(a)*67);
+  }
+ }
+
+ let t=clamp((value-min)/(max-min),0,1);
+ let ang=start+(end-start)*t;
+
+ g.save();
+ g.rotate(ang);
+ g.strokeStyle=opts.needle||'#e7d35d';
+ g.lineWidth=4;
+ g.beginPath();
+ g.moveTo(-13,0);
+ g.lineTo(77,0);
+ g.stroke();
+ g.fillStyle='#ddd';
+ g.beginPath();
+ g.arc(0,0,8,0,7);
+ g.fill();
+ g.restore();
+
+ g.fillStyle='#f1f5f7';
+ g.font='bold 20px Arial';
+ g.textAlign='center';
+ g.fillText(opts.center||Math.round(value),0,35);
+ g.restore();
+}
+
+function attitude(){
+ let c=document.getElementById('gAtt');
+ let g=c.getContext('2d');
+ let cx=120,cy=120;
+
+ g.clearRect(0,0,240,240);
+ g.save();
+ g.beginPath();
+ g.arc(cx,cy,82,0,7);
+ g.clip();
+ g.translate(cx,cy);
+ g.rotate(-state.roll);
+
+ let off=state.pitch*450;
+ g.fillStyle='#328ac1';
+ g.fillRect(-130,-130+off,260,130);
+ g.fillStyle='#9a7047';
+ g.fillRect(-130,off,260,150);
+
+ g.strokeStyle='#fff';
+ g.lineWidth=3;
+ g.beginPath();
+ g.moveTo(-130,off);
+ g.lineTo(130,off);
+ g.stroke();
+
+ g.strokeStyle='#e7f1f5';
+ g.lineWidth=2;
+ for(let i=-2;i<=2;i++){
+  g.beginPath();
+  g.moveTo(-23,off+i*22);
+  g.lineTo(23,off+i*22);
+  g.stroke();
+ }
+ g.restore();
+
+ g.strokeStyle='#e7c95e';
+ g.lineWidth=4;
+ g.beginPath();
+ g.moveTo(65,120);
+ g.lineTo(105,120);
+ g.moveTo(135,120);
+ g.lineTo(175,120);
+ g.stroke();
+
+ g.fillStyle='#f2d45b';
+ g.beginPath();
+ g.arc(120,120,5,0,7);
+ g.fill();
+}
+
+function refreshEngineUI() {
+  const engineState = document.getElementById('engineState');
+
+  if (engineState) {
+    engineState.textContent = state.started ? 'LIGADO' : 'DESLIGADO';
+  }
+}
+
+function instruments(){
+ gauge('gSpeed',state.speed*1.943,0,180,'',{
+  center:Math.round(state.speed*1.943),ticks:9
+ });
+
+ gauge('gRpm',state.rpm,0,3000,'',{
+  center:Math.round(state.rpm),ticks:10,needle:'#6de09b'
+ });
+
+ attitude();
+
+ gauge('gAlt',state.y,0,3000,'',{
+  center:Math.round(state.y),ticks:10,needle:'#f0c35a'
+ });
+
+ document.getElementById('heading').textContent=
+  String(Math.round((deg(state.heading)+360)%360)).padStart(3,'0')+'°';
+
+ document.getElementById('altTop').textContent=Math.round(state.y)+' m';
+ document.getElementById('spdTop').textContent=Math.round(state.speed*1.943)+' kt';
+ document.getElementById('rpmTop').textContent=Math.round(state.rpm).toLocaleString('pt-BR');
+
+ document.getElementById('compassNeedle').style.transform=
+  `rotate(${deg(state.heading)}deg)`;
+
+ document.getElementById('vsiText').textContent=
+  Math.round(state.vs*60)+' m/min';
+
+ document.getElementById('vsiFill').style.bottom=
+  (50+clamp(state.vs*2,-42,42))+'%';
+
+ document.getElementById('fuelNeedle').style.top=(90-state.fuel*78)+'%';
+ document.getElementById('tempNeedle').style.top=(84-(state.rpm/3000)*68)+'%';
+ document.getElementById('oilNeedle').style.top=(80-(state.rpm/3000)*60)+'%';
+
+ document.getElementById('engineState').textContent=
+  state.started?'LIGADO':'DESLIGADO';
+
+ document.getElementById('status').innerHTML=
+  `MOTOR: <b>${state.started?'LIGADO':'DESLIGADO'}</b><br>FLAPS: <b>RECOLHIDOS</b><br>TRIM: <b>${Math.round(state.pitch*100)}%</b>`;
+refreshEngineUI();
+}
+
+// DINÂMICA DA AERONAVE
+let last=performance.now();
+
+function update(dt){
+ let k=state.keys;
+
+let pitchIn=
+  (k.ArrowDown||k.KeyS?1:0)-
+  (k.ArrowUp||k.KeyW?1:0);
+
+let rollIn=
+  (k.ArrowLeft||k.KeyA?1:0)-
+  (k.ArrowRight||k.KeyD?1:0);
+
+ let yawIn=(k.KeyE?1:0)-(k.KeyQ?1:0);
+
+ if(state.mouse){
+  pitchIn+=state.mousePitch;
+  rollIn+=state.mouseRoll;
+ }
+
+ state.roll+=((rollIn*.62)-state.roll)*Math.min(1,dt*1.9);
+ state.pitch+=pitchIn*dt*.28;
+ state.pitch=clamp(state.pitch,-.42,.38);
+
+ state.heading+=Math.sin(state.roll)*dt*.22+yawIn*dt*.45;
+
+ let targetRpm=state.started?900+state.throttle*2050:0;
+ state.rpm+=(targetRpm-state.rpm)*Math.min(1,dt*2.1);
+
+ let thrust=state.started?(.25+state.throttle*.75)*8.4:0;
+ let drag=.018*state.speed*state.speed/Math.max(30,state.speed);
+ let lift=state.speed*state.speed*.0034*Math.cos(state.roll);
+
+ state.vs+=(lift-9.81+Math.sin(state.pitch)*state.speed*.7)*dt;
+ state.vs=clamp(state.vs,-22,22);
+
+ state.y+=state.vs*dt;
+ state.y=Math.max(12,state.y);
+
+ state.speed+=(thrust-drag-Math.sin(state.pitch)*2.0)*dt;
+ state.speed=clamp(state.speed,24,105);
+
+ state.x+=Math.sin(state.heading)*state.speed*dt;
+ state.z+=Math.cos(state.heading)*state.speed*dt;
+
+ state.fuel=Math.max(0,state.fuel-dt*(state.rpm/3000)*.000035);
+
+ state.throttle=clamp(
+  state.throttle+
+  ((k.ShiftLeft||k.ShiftRight)?dt*.25:0)-
+  ((k.ControlLeft||k.ControlRight)?dt*.25:0),
+  0,1
+ );
+
+ if(state.y<=12){
+  state.vs=Math.max(0,state.vs);
+  state.speed*=.999;
+ }
+}
+
+// ÁUDIO DO MOTOR
+let audioCtx=null;
+let audioOn=false;
+let master=null;
+let osc1=null,osc2=null;
+let noiseSrc=null;
+let engineGain=null,windGain=null;
+let filters=[];
+
+function makeNoise(ac){
+ let len=ac.sampleRate*2;
+ let buf=ac.createBuffer(1,len,ac.sampleRate);
+ let d=buf.getChannelData(0);
+ let lp=0;
+
+ for(let i=0;i<len;i++){
+  let n=Math.random()*2-1;
+  lp=lp*.88+n*.12;
+  d[i]=lp*.8+(Math.random()*2-1)*.13;
+ }
+
+ let s=ac.createBufferSource();
+ s.buffer=buf;
+ s.loop=true;
+ return s;
+}
+
+async function startAudio(){
+ if(audioOn&&audioCtx&&audioCtx.state==='running')return;
+
+ const AudioContextClass=window.AudioContext||window.webkitAudioContext;
+ if(!AudioContextClass)throw new Error('Este navegador não oferece Web Audio.');
+
+ if(!audioCtx){
+  audioCtx=new AudioContextClass();
+
+  master=audioCtx.createGain();
+  master.gain.value=.72;
+  master.connect(audioCtx.destination);
+
+  engineGain=audioCtx.createGain();
+  engineGain.gain.value=.0001;
+  engineGain.connect(master);
+
+  let fundamental=audioCtx.createOscillator();
+  fundamental.type='sawtooth';
+  fundamental.frequency.value=65;
+
+  let f1=audioCtx.createBiquadFilter();
+  f1.type='lowpass';
+  f1.frequency.value=480;
+  f1.Q.value=.8;
+
+  let g1=audioCtx.createGain();
+  g1.gain.value=.28;
+
+  fundamental.connect(f1).connect(g1).connect(engineGain);
+  fundamental.start();
+
+  let harmonic=audioCtx.createOscillator();
+  harmonic.type='triangle';
+  harmonic.frequency.value=130;
+
+  let f2=audioCtx.createBiquadFilter();
+  f2.type='bandpass';
+  f2.frequency.value=260;
+  f2.Q.value=.7;
+
+  let g2=audioCtx.createGain();
+  g2.gain.value=.19;
+
+  harmonic.connect(f2).connect(g2).connect(engineGain);
+  harmonic.start();
+
+  let buzz=audioCtx.createOscillator();
+  buzz.type='square';
+  buzz.frequency.value=32;
+
+  let bg=audioCtx.createGain();
+  bg.gain.value=.045;
+  buzz.connect(bg).connect(engineGain);
+  buzz.start();
+
+  let ns=makeNoise(audioCtx);
+  let nf=audioCtx.createBiquadFilter();
+  nf.type='lowpass';
+  nf.frequency.value=850;
+
+  let ng=audioCtx.createGain();
+  ng.gain.value=.16;
+  ns.connect(nf).connect(ng).connect(engineGain);
+  ns.start();
+
+  let lfo=audioCtx.createOscillator();
+  let lg=audioCtx.createGain();
+  lfo.frequency.value=17;
+  lg.gain.value=.035;
+  lfo.connect(lg).connect(engineGain.gain);
+  lfo.start();
+
+  windGain=audioCtx.createGain();
+  windGain.gain.value=.0001;
+
+  let wn=makeNoise(audioCtx);
+  let wf=audioCtx.createBiquadFilter();
+  wf.type='lowpass';
+  wf.frequency.value=500;
+
+  wn.connect(wf).connect(windGain).connect(master);
+  wn.start();
+
+  filters=[fundamental,harmonic,buzz,f1,f2,nf,wf];
+ }
+
+ await audioCtx.resume();
+
+ if(audioCtx.state!=='running'){
+  throw new Error('O navegador não iniciou o áudio.');
+ }
+
+ audioOn=true;
+ refreshEngineUI();
+}
+
+function updateAudio(){
+ // Evita erro se o navegador bloquear ou interromper a inicialização do áudio.
+ if(
+  !audioCtx ||
+  !engineGain ||
+  !windGain ||
+  !master ||
+  filters.length<7 ||
+  audioCtx.state!=='running'
+ ){
+  return;
+ }
+
+ try{
+  let now=audioCtx.currentTime;
+  let r=state.rpm/60;
+
+  filters[0].frequency.setTargetAtTime(r*2,now,.12);
+  filters[1].frequency.setTargetAtTime(r*4,now,.12);
+  filters[2].frequency.setTargetAtTime(r,now,.12);
+
+  filters[3].frequency.setTargetAtTime(280+state.rpm*.13,now,.2);
+  filters[4].frequency.setTargetAtTime(180+state.rpm*.12,now,.2);
+  filters[5].frequency.setTargetAtTime(500+state.rpm*.12,now,.2);
+
+  engineGain.gain.setTargetAtTime(
+   state.started?(.12+state.throttle*.24):.0001,
+   now,.25
+  );
+
+  windGain.gain.setTargetAtTime(
+   .015+Math.pow(state.speed/105,2)*.12,
+   now,.3
+  );
+ }catch(err){
+  console.warn('Falha ao atualizar áudio:',err);
+ }
+}
+
+function refreshEngineUI(){
+ document.getElementById('engineState').textContent=
+  state.started?'LIGADO':'DESLIGADO';
+
+ document.getElementById('soundBtn').textContent=
+  state.started?'♪ DESLIGAR MOTOR':'♪ LIGAR MOTOR';
+}
+
+// LOOP PROTEGIDO: um erro de áudio ou desenho não encerra a animação.
+function loop(now){
+ try{
+  let dt=Math.min(.045,Math.max(0,(now-last)/1000));
+  last=now;
+
+  if(state.started)update(dt);
+
+  draw();
+  instruments();
+  updateAudio();
+
+ }catch(err){
+  console.error('Erro no simulador:',err);
+ }finally{
+  requestAnimationFrame(loop);
+ }
+}
+
+requestAnimationFrame(loop);
+
+// TECLADO
+addEventListener('keydown',e=>{
+ state.keys[e.code]=true;
+
+ if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)){
+  e.preventDefault();
+ }
+});
+
+addEventListener('keyup',e=>{
+ state.keys[e.code]=false;
+});
+
+// CONTROLE PELO MOUSE E TOQUE
+let pointer=null;
+
+canvas.addEventListener('pointerdown',e=>{
+ pointer={x:e.clientX,y:e.clientY};
+ state.mouse=true;
+ state.mousePitch=0;
+ state.mouseRoll=0;
+ canvas.setPointerCapture(e.pointerId);
+});
+
+canvas.addEventListener('pointermove',e=>{
+ if(!pointer)return;
+
+ state.mouseRoll=clamp((e.clientX-pointer.x)/W*2,-.7,.7);
+ state.mousePitch=clamp((pointer.y-e.clientY)/H*1.3,-.5,.5);
+
+ pointer={x:e.clientX,y:e.clientY};
+});
+
+function stopPointer(){
+ pointer=null;
+ state.mouse=false;
+ state.mousePitch=0;
+ state.mouseRoll=0;
+}
+
+canvas.addEventListener('pointerup',stopPointer);
+canvas.addEventListener('pointercancel',stopPointer);
+
+// BOTÃO PRINCIPAL: O VOO COMEÇA MESMO SE O ÁUDIO FALHAR.
+document.getElementById('startBtn').addEventListener('click',()=>{
+ state.started=true;
+ state.throttle=Math.max(state.throttle,.58);
+ state.rpm=Math.max(state.rpm,900);
+
+ document.getElementById('startOverlay').style.display='none';
+ refreshEngineUI();
+
+ startAudio().catch(err=>{
+  console.warn('Áudio indisponível; simulador continuará funcionando:',err);
+  document.getElementById('soundBtn').textContent='♪ ÁUDIO INDISPONÍVEL';
+ });
+});
+
+// LIGAR E DESLIGAR MOTOR
+document.getElementById('soundBtn').addEventListener('click',async()=>{
+ if(!state.started){
+  state.started=true;
+  state.throttle=Math.max(state.throttle,.58);
+  refreshEngineUI();
+
+  try{
+   await startAudio();
+  }catch(err){
+   console.warn('Áudio indisponível:',err);
+   document.getElementById('soundBtn').textContent='♪ ÁUDIO INDISPONÍVEL';
+  }
+ }else{
+  state.started=false;
+  refreshEngineUI();
+ }
+});
+
+// REINICIAR VOO
+document.getElementById('resetBtn').onclick=()=>{
+ Object.assign(state,{
+  x:0,z:-420,y:450,
+  heading:0,pitch:-.015,roll:0,
+  speed:49,throttle:.58,rpm:1900,vs:0,
+  fuel:.88,started:true
+ });
+
+ refreshEngineUI();
+};
+
+// VISÃO
+document.getElementById('viewBtn').onclick=()=>{
+ state.free=!state.free;
+ document.getElementById('viewBtn').textContent=
+  state.free?'◉ VISÃO NORMAL':'◉ VISÃO LIVRE';
+};
+
+})();
+</script>
+</body>
+</html>
